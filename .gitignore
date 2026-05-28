@@ -1,0 +1,5 @@
+node_modules/
+mdf-validate
+mdf-validate-linux-x64
+mdf-validate-mac-arm64
+*.lock
