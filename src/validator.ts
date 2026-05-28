@@ -268,18 +268,23 @@ function validateValue(
   errors: string[]
 ) {
   const types = Array.isArray(schema.type)
-    ? (schema.type as string[])
-    : schema.type
-    ? [schema.type as string]
-    : [];
+  ? (schema.type as string[])
+  : schema.type
+  ? [schema.type as string]
+  : [];
 
-  if (types.length > 0 && !types.includes("null")) {
-    const actualType = Array.isArray(value) ? "array" : typeof value;
-    if (value !== null && !types.includes(actualType)) {
-      errors.push(`${path}: expected ${types.join(" or ")}, got ${actualType}`);
-      return;
-    }
+if (types.length > 0 && !types.includes("null")) {
+  const actualType = Array.isArray(value) ? "array" : typeof value;
+  // JSON Schema: "integer" is a subtype of "number" — typeof returns "number" for both
+  const typeMatch =
+    value !== null &&
+    (types.includes(actualType) ||
+      (types.includes("integer") && typeof value === "number" && Number.isInteger(value)));
+  if (!typeMatch) {
+    errors.push(`${path}: expected ${types.join(" or ")}, got ${actualType}`);
+    return;
   }
+}
 
   if (schema.type === "object" || (schema.properties && typeof value === "object")) {
     validateObject(value, schema, path, errors);
