@@ -1,0 +1,22 @@
+{
+  "resource": "https://example.com/premium/deep-dive",
+  "mdf_version": "1.0",
+  "source_bytes": 16180,
+  "savings": {
+    "source_bytes": 16180,
+    "markdown_bytes": 3150,
+    "reduction_pct": 80.5
+  },
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "amount": "1.0000",
+    "currency": "USDC",
+    "chain": "base",
+    "rail": "x402",
+    "accepted_chains": ["base", "ethereum", "lightning"],
+    "accepted_currencies": ["USDC", "USDT", "BTC"],
+    "recipient": "0xAbCd1234AbCd1234AbCd1234AbCd1234AbCd1234",
+    "session_nonce": "7f3a0f2b6c1e4d8a9b0c1d2e3f4a5b6c",
+    "expires_at": "2026-09-05T00:00:00Z"
+  }
+}

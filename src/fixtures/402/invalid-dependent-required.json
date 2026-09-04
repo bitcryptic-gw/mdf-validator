@@ -1,0 +1,10 @@
+{
+  "resource": "https://example.com/premium/deep-dive",
+  "token_estimate": 482,
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "amount": "1.0000",
+    "currency": "USDC",
+    "chain": "base"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "mdf_version": "1.0",
+  "site": "example.com",
+  "pricing": {
+    "default": { "amount": "0.0000" }
+  }
+}

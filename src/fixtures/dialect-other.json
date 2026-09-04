@@ -1,0 +1,10 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://example.com",
+  "pricing": {
+    "default": { "amount": "0.0000" }
+  },
+  "formats": {
+    "dialect": "other"
+  }
+}

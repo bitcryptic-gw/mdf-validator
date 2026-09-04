@@ -1,0 +1,12 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://example.com",
+  "pricing": {
+    "default": { "amount": "0.0001", "currency": "USDC", "chain": "base" }
+  },
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "accepted_chains": [],
+    "accepted_currencies": ["USDC"]
+  }
+}

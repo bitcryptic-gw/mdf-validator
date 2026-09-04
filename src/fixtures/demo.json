@@ -1,0 +1,81 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://mdf-demo.bitcryptic.com",
+  "name": "MDF Demo Site",
+  "pricing": {
+    "default": {
+      "amount": "0.0001",
+      "currency": "USDC",
+      "chain": "base"
+    },
+    "sections": {
+      "/": {
+        "amount": "0.0000",
+        "currency": null,
+        "chain": null
+      },
+      "/docs/**": {
+        "amount": "0.0000",
+        "currency": null,
+        "chain": null
+      },
+      "/micropayment/**": {
+        "amount": "0.00000001",
+        "currency": "BTC",
+        "chain": "lightning"
+      },
+      "/premium/**": {
+        "amount": "1.0000",
+        "currency": "USDC",
+        "chain": "base"
+      },
+      "/private/**": {
+        "amount": "100.00",
+        "currency": "USDC",
+        "chain": "base"
+      }
+    }
+  },
+  "payment": {
+    "endpoint": "https://mdf-demo.bitcryptic.com/mdf/pay",
+    "accepted_chains": [
+      "base",
+      "ethereum",
+      "lightning"
+    ],
+    "accepted_currencies": [
+      "USDC",
+      "USDT",
+      "BTC"
+    ],
+    "wallet": "0xa7D911138322aF8823642beA2b174dFaC2725fB7"
+  },
+  "auth": {
+    "endpoint": "https://mdf-demo.bitcryptic.com/mdf/auth",
+    "token_ttl_seconds": 86400,
+    "price_threshold": "10.00"
+  },
+  "content_signals": {
+    "ai_train": false,
+    "ai_input": true,
+    "search": true,
+    "human_only": false
+  },
+  "formats": {
+    "dialect": "commonmark",
+    "frontmatter": true,
+    "math": false
+  },
+  "feed": {
+    "url": "https://mdf-demo.bitcryptic.com/feed.xml",
+    "format": "atom",
+    "websub_hub": "https://pubsubhubbub.appspot.com/",
+    "change_types": [
+      "content_update",
+      "new_page",
+      "pricing_change",
+      "mdf_capability"
+    ]
+  },
+  "contact": "admin@mdf-demo.bitcryptic.com"
+}

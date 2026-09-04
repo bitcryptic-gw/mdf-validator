@@ -1,0 +1,16 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://example.com",
+  "name": "Dialect and feed format fixture",
+  "pricing": {
+    "default": { "amount": "0.0000" }
+  },
+  "formats": {
+    "dialect": "pandoc"
+  },
+  "feed": {
+    "url": "https://example.com/feed.xml",
+    "format": "rss2",
+    "change_types": ["content_update"]
+  }
+}

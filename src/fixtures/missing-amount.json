@@ -1,0 +1,8 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://example.com",
+  "pricing": {
+    "default": { "currency": "USDC", "chain": "base" },
+    "sections": { "/premium/**": { "amount": "abc", "currency": "USDC" } }
+  }
+}

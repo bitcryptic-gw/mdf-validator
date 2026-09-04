@@ -1,0 +1,12 @@
+{
+  "mdf_version": "1.0",
+  "site": "https://example.com",
+  "pricing": {
+    "default": { "amount": "0.0001", "currency": "USDC", "chain": "base" }
+  },
+  "auth": {
+    "endpoint": "https://example.com/mdf/auth",
+    "token_ttl_seconds": 30,
+    "price_threshold": "10.00"
+  }
+}
