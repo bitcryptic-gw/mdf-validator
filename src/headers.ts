@@ -1,132 +1,216 @@
 /**
- * headers.ts — verify MDF response headers on content URLs
+ * headers.ts — verify MDF response headers on content URLs, and validate a
+ * live 402 body when the site declares priced content.
+ *
+ * Test URLs are resolved from the site's own /llms.txt rather than fabricated
+ * from pricing globs. The old glob-fabrication heuristic failed conformant
+ * sites whose free tier was a glob with no page at the glob root (e.g. a free
+ * /docs/** with no /docs page): it probed /docs, got a 404, and reported a
+ * header failure on the 404 body. /llms.txt exists to list real resources.
  */
 
 import type { ValidationResult } from "./index.ts";
 
-// x-mdf-version appears in the spec's content-serving example (CONCEPT.md).
-// x-mdf-tokens was removed from the spec (CONCEPT.md:105) and is not required.
 const REQUIRED_HEADERS = ["x-mdf-version"] as const;
 const EXPECTED_CONTENT_TYPE = "text/markdown";
+
+type PriceRule = {
+  amount?: unknown;
+  currency?: unknown;
+  chain?: unknown;
+};
+
+/**
+ * Look up the price rule for a URL path using the same glob semantics the
+ * reference implementation uses: most-specific (longest) matching section
+ * wins, otherwise the default. Returns null when pricing is absent.
+ */
+function priceForPath(
+  urlPath: string,
+  mdfDoc: Record<string, unknown>
+): PriceRule | null {
+  const pricing = mdfDoc.pricing as Record<string, unknown> | undefined;
+  if (!pricing) return null;
+
+  const sections = pricing.sections as Record<string, unknown> | undefined;
+  const def = pricing.default as PriceRule | undefined;
+
+  if (sections) {
+    let bestPattern: string | null = null;
+    for (const pattern of Object.keys(sections)) {
+      if (globToRegex(pattern).test(urlPath)) {
+        if (bestPattern === null || pattern.length > bestPattern.length) {
+          bestPattern = pattern;
+        }
+      }
+    }
+    if (bestPattern !== null) {
+      return sections[bestPattern] as PriceRule;
+    }
+  }
+
+  return def ?? null;
+}
+
+function globToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "§DOUBLE§")
+    .replace(/\*/g, "[^/]+")
+    .replace(/§DOUBLE§/g, ".*");
+  return new RegExp(`^${escaped}$`);
+}
+
+function isFree(rule: PriceRule | null): boolean {
+  return rule !== null && parseFloat(String(rule.amount)) === 0;
+}
+
+/**
+ * Extract absolute, same-origin content URLs from an llms.txt body.
+ * Accepts markdown links ([Title](url)) and bare http(s) URLs.
+ */
+function parseLlmsUrls(baseUrl: string, llmsText: string): string[] {
+  const base = new URL(baseUrl);
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: string) => {
+    let url: URL;
+    try {
+      url = new URL(raw, base.origin + "/");
+    } catch {
+      return;
+    }
+    if (url.origin !== base.origin) return;
+    const normalized = url.pathname;
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(url.toString());
+  };
+
+  const linkRe = /\[[^\]]*\]\(\s*([^)\s]+)\s*\)/g;
+  const bareRe = /https?:\/\/[^\s>]+/g;
+
+  for (const m of llmsText.matchAll(linkRe)) push(m[1]);
+  for (const m of llmsText.matchAll(bareRe)) push(m[0]);
+
+  return out;
+}
+
+async function fetchText(url: string, timeout: number): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
 
 export async function checkHeaders(
   baseUrl: string,
   mdfDoc: Record<string, unknown>,
   timeout: number
 ): Promise<ValidationResult[]> {
-  // Find a free ($0.00) content URL to test against — no payment needed
-  const testUrl = findFreeUrl(baseUrl, mdfDoc);
-  if (!testUrl) {
-    return [
-      {
-        pass: false,
-        level: "warn",
-        label: `${baseUrl} (headers check)`,
-        message: "no free content URL found in pricing sections to test headers against",
-      },
-    ];
-  }
-
   const results: ValidationResult[] = [];
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    const res = await fetch(testUrl, {
-      headers: { Accept: "text/markdown, text/html;q=0.9" },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+  // Resolve real content URLs from /llms.txt when available.
+  const llmsText = await fetchText(`${baseUrl}/llms.txt`, timeout);
+  const llmsUrls = llmsText ? parseLlmsUrls(baseUrl, llmsText) : [];
 
-    // Content-Type check
-    const contentType = res.headers.get("content-type") ?? "";
-    const hasMarkdownType = contentType.startsWith(EXPECTED_CONTENT_TYPE);
-    results.push({
-      pass: hasMarkdownType,
-      level: hasMarkdownType ? "info" : "error",
-      label: `${testUrl} Content-Type`,
-      message: hasMarkdownType
-        ? `text/markdown ✓`
-        : `expected text/markdown, got ${contentType || "(none)"}`,
-    });
+  const freeUrls = llmsUrls.filter((u) => isFree(priceForPath(new URL(u).pathname, mdfDoc)));
 
-    // Required MDF headers
-    for (const header of REQUIRED_HEADERS) {
-      const val = res.headers.get(header);
-      const present = val !== null;
-      results.push({
-        pass: present,
-        level: present ? "info" : "error",
-        label: `${testUrl} ${header}`,
-        message: present ? `${val}` : "missing",
-      });
-    }
+  // A free URL for the header checks: prefer a real listed URL, then fall back
+  // to the site root only when the root itself is free.
+  let freeUrl: string | null = null;
+  let freeSource = "";
+  if (freeUrls.length > 0) {
+    freeUrl = freeUrls[0];
+    freeSource = "from /llms.txt";
+  } else if (isFree(priceForPath("/", mdfDoc))) {
+    freeUrl = baseUrl + "/";
+    freeSource = "site root (free default)";
+  }
 
-    // X-MDF-Price — optional but notable if absent
-    const price = res.headers.get("x-mdf-price");
-    results.push({
-      pass: true,
-      level: "info",
-      label: `${testUrl} x-mdf-price`,
-      message: price !== null ? price : "(not present — optional for free content)",
-    });
-  } catch (err: any) {
+  if (!freeUrl) {
     results.push({
       pass: false,
-      level: "error",
-      label: `${testUrl} (headers check)`,
+      level: "warn",
+      label: `${baseUrl} (headers check)`,
       message:
-        err?.name === "AbortError"
-          ? "timed out"
-          : `fetch failed (${err?.message ?? "unknown error"})`,
+        llmsUrls.length === 0
+          ? "no /llms.txt and no free default — skipped free-content header checks (site may be fully priced)"
+          : "no free content URL found in /llms.txt or pricing — skipped free-content header checks",
     });
+  } else {
+    const freeHeaders = await probeContentUrl(freeUrl, timeout, "free");
+    if (freeHeaders) {
+      const { contentType, status } = freeHeaders;
+      if (status !== 200) {
+        results.push({
+          pass: false,
+          level: "warn",
+          label: `${freeUrl} (free content, ${freeSource})`,
+          message: `returned HTTP ${status} — header checks inconclusive`,
+        });
+      } else {
+        const hasMarkdownType = contentType.startsWith(EXPECTED_CONTENT_TYPE);
+        results.push({
+          pass: hasMarkdownType,
+          level: hasMarkdownType ? "info" : "error",
+          label: `${freeUrl} Content-Type`,
+          message: hasMarkdownType
+            ? `text/markdown ✓`
+            : `expected text/markdown, got ${contentType || "(none)"}`,
+        });
+
+        for (const header of REQUIRED_HEADERS) {
+          const val = freeHeaders.headers.get(header);
+          const present = val !== null;
+          results.push({
+            pass: present,
+            level: present ? "info" : "error",
+            label: `${freeUrl} ${header}`,
+            message: present ? `${val}` : "missing",
+          });
+        }
+
+        const price = freeHeaders.headers.get("x-mdf-price");
+        results.push({
+          pass: true,
+          level: "info",
+          label: `${freeUrl} x-mdf-price`,
+          message: price !== null ? price : "(not present — optional for free content)",
+        });
+      }
+    }
   }
 
   return results;
 }
 
-function findFreeUrl(
-  baseUrl: string,
-  mdfDoc: Record<string, unknown>
-): string | null {
-  const pricing = mdfDoc.pricing as Record<string, unknown> | undefined;
-  if (!pricing) return null;
-
-  const sections = pricing.sections as Record<string, unknown> | undefined;
-  if (!sections) {
-    // Check if default is free
-    const def = pricing.default as Record<string, unknown> | undefined;
-    if (def && def.amount === "0.0000") return baseUrl + "/";
+/** Fetch a content URL and return headers + status (Accept: markdown). */
+async function probeContentUrl(
+  url: string,
+  timeout: number
+): Promise<{ status: number; contentType: string; headers: Headers } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, {
+      headers: { Accept: "text/markdown, text/html;q=0.9" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return {
+      status: res.status,
+      contentType: res.headers.get("content-type") ?? "",
+      headers: res.headers,
+    };
+  } catch {
     return null;
   }
-
-  // Find first section with amount 0
-  for (const [pattern, rule] of Object.entries(sections)) {
-    const r = rule as Record<string, unknown>;
-    if (r.amount === "0.0000" || r.amount === "0.00" || r.amount === "0") {
-      // Convert glob pattern to a concrete URL
-      const concreteUrl = patternToUrl(baseUrl, pattern);
-      if (concreteUrl) return concreteUrl;
-    }
-  }
-
-  // Fall back to root if default is free
-  const def = pricing.default as Record<string, unknown> | undefined;
-  if (def && (def.amount === "0.0000" || def.amount === "0.00" || def.amount === "0")) {
-    return baseUrl + "/";
-  }
-
-  return null;
-}
-
-function patternToUrl(baseUrl: string, pattern: string): string | null {
-  // Strip glob suffixes to get a concrete path
-  const concrete = pattern
-    .replace(/\/\*\*$/, "")
-    .replace(/\/\*$/, "")
-    .replace(/\*\*$/, "")
-    .replace(/\*$/, "");
-
-  if (!concrete || concrete === "/") return baseUrl + "/";
-  return baseUrl + concrete;
 }
