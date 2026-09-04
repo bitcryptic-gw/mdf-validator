@@ -81,7 +81,7 @@ const BUNDLED_SCHEMA = {
       type: "object",
       additionalProperties: false,
       properties: {
-        dialect: { type: "string", enum: ["commonmark", "gfm", "agnostic"] },
+        dialect: { type: "string", enum: ["commonmark", "gfm", "pandoc", "other"] },
         frontmatter: { type: "boolean" },
         math: { type: "boolean" },
       },
@@ -91,7 +91,7 @@ const BUNDLED_SCHEMA = {
       additionalProperties: false,
       properties: {
         url: { type: "string" },
-        format: { type: "string", enum: ["rss", "atom"] },
+        format: { type: "string", enum: ["rss2", "atom"] },
         websub_hub: { type: "string", format: "uri" },
         change_types: {
           type: "array",
