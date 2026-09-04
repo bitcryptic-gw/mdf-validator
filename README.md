@@ -66,8 +66,8 @@ mdf-validate --timeout 5000 https://mdf-demo.bitcryptic.com
 **Failing site:**
 ```
 ❌ https://example.com/mdf.json — schema validation failed
-   pricing.default.currency: required field missing
-   payment.endpoint: additional property not allowed
+   /pricing/default: must have required property 'amount'
+   /pricing/sections/~1premium~1**/amount: must match pattern "^\\d+(\\.\\d+)?$"
 ⚠️  https://example.com/llms.txt — not reachable (404)
 
 0 passed, 1 failed, 1 warnings

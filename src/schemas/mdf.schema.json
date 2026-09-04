@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bitcryptic-gw/mdf/main/mdf.schema.json",
+  "title": "MDF Capability Document",
+  "description": "Schema for the /mdf.json capability document served by MDF-compliant sites. Advertises markdown serving capabilities, pricing, payment configuration, content signals, and authentication endpoints to agent clients.",
+  "type": "object",
+  "required": ["mdf_version", "site", "pricing"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "mdf_version": {
+      "type": "string",
+      "description": "The MDF spec version this document conforms to.",
+      "pattern": "^\\d+\\.\\d+$",
+      "examples": ["1.0"]
+    },
+
+    "site": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical base URL of the site. Must use https://.",
+      "examples": ["https://example.com"]
+    },
+
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the site or publisher.",
+      "examples": ["Example Docs"]
+    },
+
+    "pricing": {
+      "type": "object",
+      "description": "Pricing configuration. Defines the default per-fetch price and optional per-section overrides. Price is the primary access policy signal.",
+      "required": ["default"],
+      "additionalProperties": false,
+      "properties": {
+
+        "default": {
+          "$ref": "#/$defs/price_entry",
+          "description": "Default price applied to all paths not matched by a section override."
+        },
+
+        "sections": {
+          "type": "object",
+          "description": "Path-pattern-keyed price overrides. Keys are glob patterns matched against the request path. More specific patterns take precedence. Patterns follow standard glob rules: * matches within a path segment, ** matches across segments.",
+          "propertyNames": {
+            "type": "string",
+            "description": "Glob pattern for path matching, e.g. /docs/**, /premium/*"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/price_entry"
+          },
+          "examples": [
+            {
+              "/docs/**": { "amount": "0.0000", "currency": null, "chain": null },
+              "/premium/**": { "amount": "1.0000", "currency": "USDC", "chain": "base" }
+            }
+          ]
+        }
+
+      }
+    },
+
+    "payment": {
+      "type": "object",
+      "description": "Payment endpoint configuration. Required if any price_entry has a non-zero amount.",
+      "additionalProperties": false,
+      "properties": {
+
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to which agents submit payment proofs. Must handle both x402-compatible EVM payment proofs and L402 Lightning payment proofs, as indicated by the agent's chosen rail from accepted_chains.",
+          "examples": ["https://example.com/mdf/pay"]
+        },
+
+        "accepted_chains": {
+          "type": "array",
+          "description": "List of accepted payment rails. For EVM networks use the chain name (e.g. 'base', 'ethereum'). For Bitcoin Lightning use 'lightning'. Agents select from this list when constructing payments.",
+          "items": {
+            "type": "string",
+            "examples": ["base", "ethereum", "polygon", "solana", "lightning"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+
+        "accepted_currencies": {
+          "type": "array",
+          "description": "List of accepted currency symbols. For Lightning payments use 'BTC' (denominated in satoshis). Agents should select a currency supported on their chosen chain.",
+          "items": {
+            "type": "string",
+            "examples": ["USDC", "USDT", "ETH", "BTC"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+
+        "wallet": {
+          "type": "string",
+          "description": "Primary receiving address. Format is rail-dependent: for EVM chains, a checksummed 0x address; for Lightning, a node public key or LNURL.",
+          "examples": ["0xAbCd1234AbCd1234AbCd1234AbCd1234AbCd1234", "lnurl1dp68gurn8ghj7..."]
+        }
+
+      }
+    },
+
+    "auth": {
+      "type": "object",
+      "description": "Authentication configuration. When present, indicates that high-price-tier payment triggers bearer token issuance rather than per-fetch content delivery. Applies to both x402 and L402 payment flows.",
+      "additionalProperties": false,
+      "properties": {
+
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to which agents submit payment proof to receive a bearer token.",
+          "examples": ["https://example.com/mdf/auth"]
+        },
+
+        "token_ttl_seconds": {
+          "type": "integer",
+          "description": "Lifetime of issued bearer tokens in seconds.",
+          "minimum": 60,
+          "examples": [86400, 604800]
+        },
+
+        "price_threshold": {
+          "type": "string",
+          "description": "Minimum price (as a decimal string) at which payment triggers auth token issuance rather than direct content delivery. Paths priced at or above this value require token-based access.",
+          "pattern": "^\\d+(\\.\\d+)?$",
+          "examples": ["10.00", "100.00"]
+        }
+
+      }
+    },
+
+    "content_signals": {
+      "type": "object",
+      "description": "Advisory signals indicating how agents and operators may use content served from this site. These are signals, not technical enforcement mechanisms.",
+      "additionalProperties": false,
+      "properties": {
+
+        "ai_train": {
+          "type": "boolean",
+          "description": "Whether content may be used for AI model training.",
+          "default": false
+        },
+
+        "ai_input": {
+          "type": "boolean",
+          "description": "Whether content may be used as context input during AI inference.",
+          "default": true
+        },
+
+        "search": {
+          "type": "boolean",
+          "description": "Whether content may be indexed by search systems.",
+          "default": true
+        },
+
+        "human_only": {
+          "type": "boolean",
+          "description": "If true, the site requests that agents do not fetch content regardless of price. MDF serving may still be technically available but is explicitly discouraged.",
+          "default": false
+        }
+
+      }
+    },
+
+    "formats": {
+      "type": "object",
+      "description": "Markdown format capabilities advertised by this site.",
+      "additionalProperties": false,
+      "properties": {
+
+        "dialect": {
+          "type": "string",
+          "description": "The markdown dialect produced by this site's MDF endpoint.",
+          "enum": ["commonmark", "gfm", "pandoc", "other"],
+          "default": "commonmark"
+        },
+
+        "frontmatter": {
+          "type": "boolean",
+          "description": "Whether markdown responses include YAML frontmatter with page metadata.",
+          "default": false
+        },
+
+        "math": {
+          "type": "boolean",
+          "description": "Whether the site uses LaTeX math notation in markdown content.",
+          "default": false
+        }
+
+      }
+    },
+
+    "feed": {
+      "type": "object",
+      "description": "Content freshness and agent subscription configuration. MDF extends standard RSS/Atom feeds with change-type metadata and optionally supports WebSub push notifications.",
+      "additionalProperties": false,
+      "properties": {
+
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the site's RSS 2.0 or Atom 1.0 feed, extended with MDF change metadata.",
+          "examples": ["https://example.com/feed.xml", "https://example.com/atom.xml"]
+        },
+
+        "format": {
+          "type": "string",
+          "description": "Feed format.",
+          "enum": ["rss2", "atom"],
+          "default": "atom"
+        },
+
+        "websub_hub": {
+          "type": "string",
+          "format": "uri",
+          "description": "WebSub hub URL for push notifications. Agents that support WebSub can subscribe here to receive change notifications without polling. Falls back to feed polling if absent.",
+          "examples": ["https://pubsubhubbub.appspot.com/", "https://example.com/websub"]
+        },
+
+        "change_types": {
+          "type": "array",
+          "description": "List of mdf:change_type values this feed emits. Agents can use this to filter subscription interest.",
+          "items": {
+            "type": "string",
+            "enum": ["content_update", "new_page", "retraction", "pricing_change", "signal_change", "mdf_capability"]
+          },
+          "uniqueItems": true,
+          "examples": [["content_update", "new_page", "pricing_change"]]
+        }
+
+      }
+    },
+
+    "llms_txt": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the site's llms.txt index file, if present. MDF-compliant sites should also maintain an llms.txt for backwards compatibility with agents that do not yet support MDF.",
+      "examples": ["https://example.com/llms.txt"]
+    },
+
+    "contact": {
+      "type": "string",
+      "description": "Contact address for MDF-related enquiries. May be an email address or URL.",
+      "examples": ["admin@example.com", "https://example.com/contact"]
+    }
+
+  },
+
+  "$defs": {
+
+    "price_entry": {
+      "type": "object",
+      "description": "A price definition for a path or the site default.",
+      "required": ["amount"],
+      "additionalProperties": false,
+      "properties": {
+
+        "amount": {
+          "type": "string",
+          "description": "Per-fetch price as a decimal string. Use '0.0000' for open access. The number of decimal places should match the currency's smallest unit.",
+          "pattern": "^\\d+(\\.\\d+)?$",
+          "examples": ["0.0000", "0.0001", "1.0000", "100.00"]
+        },
+
+        "currency": {
+          "type": ["string", "null"],
+          "description": "Currency symbol. Null or omitted for free access. Use 'BTC' for Lightning-denominated prices (amounts in satoshis).",
+          "examples": ["USDC", "USDT", "ETH", "BTC", null]
+        },
+
+        "chain": {
+          "type": ["string", "null"],
+          "description": "Preferred payment rail for this price tier. Use an EVM chain name (e.g. 'base', 'ethereum') for x402 flows, or 'lightning' for L402/Lightning flows. Null or omitted for free access. Agents may select an alternative from payment.accepted_chains if the preferred rail is unsupported.",
+          "examples": ["base", "ethereum", "polygon", "solana", "lightning", null]
+        }
+
+      }
+    }
+
+  },
+
+  "examples": [
+    {
+      "mdf_version": "1.0",
+      "site": "https://example.com",
+      "name": "Example Documentation",
+      "pricing": {
+        "default": { "amount": "0.0001", "currency": "USDC", "chain": "base" },
+        "sections": {
+          "/docs/**": { "amount": "0.0000", "currency": null, "chain": null },
+          "/premium/**": { "amount": "1.0000", "currency": "USDC", "chain": "base" },
+          "/private/**": { "amount": "100.00", "currency": "USDC", "chain": "base" }
+        }
+      },
+      "payment": {
+        "endpoint": "https://example.com/mdf/pay",
+        "accepted_chains": ["base", "ethereum", "lightning"],
+        "accepted_currencies": ["USDC", "USDT", "BTC"],
+        "wallet": "0xAbCd1234AbCd1234AbCd1234AbCd1234AbCd1234"
+      },
+      "auth": {
+        "endpoint": "https://example.com/mdf/auth",
+        "token_ttl_seconds": 86400,
+        "price_threshold": "10.00"
+      },
+      "content_signals": {
+        "ai_train": false,
+        "ai_input": true,
+        "search": true,
+        "human_only": false
+      },
+      "formats": {
+        "dialect": "commonmark",
+        "frontmatter": true,
+        "math": false
+      },
+      "llms_txt": "https://example.com/llms.txt",
+      "feed": {
+        "url": "https://example.com/feed.xml",
+        "format": "atom",
+        "websub_hub": "https://pubsubhubbub.appspot.com/",
+        "change_types": ["content_update", "new_page", "pricing_change", "mdf_capability"]
+      },
+      "contact": "admin@example.com"
+    }
+  ]
+}
