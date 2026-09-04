@@ -4,7 +4,9 @@
 
 import type { ValidationResult } from "./index.ts";
 
-const REQUIRED_HEADERS = ["x-mdf-version", "x-mdf-tokens"] as const;
+// x-mdf-version appears in the spec's content-serving example (CONCEPT.md).
+// x-mdf-tokens was removed from the spec (CONCEPT.md:105) and is not required.
+const REQUIRED_HEADERS = ["x-mdf-version"] as const;
 const EXPECTED_CONTENT_TYPE = "text/markdown";
 
 export async function checkHeaders(

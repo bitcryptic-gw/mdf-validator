@@ -58,7 +58,7 @@ mdf-validate --timeout 5000 https://mdf-demo.bitcryptic.com
 ✅ https://mdf-demo.bitcryptic.com/llms.txt — reachable
 ✅ https://mdf-demo.bitcryptic.com/ Content-Type — text/markdown ✓
 ✅ https://mdf-demo.bitcryptic.com/ x-mdf-version — 1
-✅ https://mdf-demo.bitcryptic.com/ x-mdf-tokens — 847
+✅ https://mdf-demo.bitcryptic.com/ x-mdf-price — (not present — optional for free content)
 
 5/5 checks passed
 ```
@@ -101,7 +101,6 @@ Exit code is `0` if all checks pass or warn, `1` if any check fails.
 | `/llms.txt` reachable | ✅ | ✅ |
 | Free content URL returns `text/markdown` | — | ✅ |
 | `X-MDF-Version` header present | — | ✅ |
-| `X-MDF-Tokens` header present | — | ✅ |
 
 ---
 
