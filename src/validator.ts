@@ -14,12 +14,14 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import type { ErrorObject } from "ajv";
 import mdfSchema from "./schemas/mdf.schema.json";
+import body402Schema from "./schemas/mdf-402.schema.json";
 
 // Single Ajv instance, compiled once at startup.
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 
 const isMdfDoc = ajv.compile(mdfSchema);
+const is402Body = ajv.compile(body402Schema);
 
 // ---------------------------------------------------------------------------
 // Pure validation helpers (used by the CLI and by tests)
@@ -32,6 +34,21 @@ const isMdfDoc = ajv.compile(mdfSchema);
 export function validateMdfDocument(doc: unknown): string[] {
   if (isMdfDoc(doc)) return [];
   return formatErrors(isMdfDoc.errors ?? []);
+}
+
+/**
+ * Validate a parsed 402 Payment Required response body against the
+ * mdf-402.schema.json schema. Returns an empty array when valid, otherwise
+ * one message per violation. The reference server's build402Response output is
+ * the shape this is expected to accept.
+ *
+ * Nothing in the CLI exercises this against a live site yet — exercising a
+ * paid flow would require the validator to submit or simulate a payment. The
+ * path is wired and fixture-tested so a live 402 can be dropped in later.
+ */
+export function validate402Body(body: unknown): string[] {
+  if (is402Body(body)) return [];
+  return formatErrors(is402Body.errors ?? []);
 }
 
 function formatErrors(errors: ErrorObject[]): string[] {

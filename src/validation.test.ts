@@ -11,7 +11,7 @@
 import { test, expect } from "bun:test";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { validateMdfDocument } from "./validator.ts";
+import { validateMdfDocument, validate402Body } from "./validator.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
 
@@ -84,4 +84,21 @@ test("minimum: token_ttl_seconds must be >= 60", () => {
 
 test("demo.json from the live site is valid", () => {
   expect(validateMdfDocument(loadDoc("demo.json"))).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// 402 response bodies (mdf-402.schema.json)
+// ---------------------------------------------------------------------------
+
+const p402 = (name: string) =>
+  JSON.parse(readFileSync(join(FIXTURES, "402", name), "utf8"));
+
+test("402 valid body passes", () => {
+  expect(validate402Body(p402("valid.json"))).toEqual([]);
+});
+
+test("402 token_estimate without token_estimate_note violates dependentRequired", () => {
+  const errors = validate402Body(p402("invalid-dependent-required.json"));
+  expect(errors.length).toBeGreaterThan(0);
+  expect(errors.join("\n")).toContain("token_estimate_note");
 });

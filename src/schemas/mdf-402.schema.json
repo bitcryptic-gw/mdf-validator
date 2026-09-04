@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bitcryptic-gw/mdf/mdf-402.schema.json",
+  "title": "MDF 402 Payment Required response body",
+  "description": "Describes the JSON body a server emits with a 402 Payment Required response to an Accept: text/markdown request. This schema describes server output; it places no obligation on consumers. Note that `format` is annotation-only in Draft 2020-12 unless the validator registers a format plugin — the accompanying `pattern` on each string field is the load-bearing constraint and is what implementors should rely on.",
+  "type": "object",
+  "required": ["payment"],
+  "additionalProperties": true,
+  "properties": {
+    "error": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Short machine-stable error label, e.g. 'Payment Required'."
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Human-readable explanation. Advisory only; never parse this to extract price."
+    },
+    "resource": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 2048,
+      "description": "Absolute URL of the resource being priced, including query string. Emitted by the reference server. This is the one field in a 402 a consumer cannot reconstruct once the response is held out of band."
+    },
+    "mdf_version": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?$",
+      "description": "MDF version this response conforms to. The reference server currently carries this as the `x-mdf-version` response header rather than a body field; both are valid, and a major or minor form ('1' or '1.0') is accepted."
+    },
+    "source_bytes": { "$ref": "#/$defs/byteCount" },
+    "savings": { "$ref": "#/$defs/savings" },
+    "auth_endpoint": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048,
+      "description": "Present where payment at this tier issues a bearer credential rather than delivering content immediately."
+    },
+    "payment": { "$ref": "#/$defs/payment" },
+    "token_estimate": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000,
+      "description": "Optional heuristic token estimate. Never authoritative. If present, token_estimate_note MUST also be present."
+    },
+    "token_estimate_note": {
+      "type": "string",
+      "maxLength": 512,
+      "description": "Description of the estimation method, e.g. 'chars/4 approximation'."
+    }
+  },
+  "dependentRequired": {
+    "token_estimate": ["token_estimate_note"]
+  },
+  "$defs": {
+    "byteCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1099511627776,
+      "description": "A byte length. Bounded to reject implausible values from an untrusted origin."
+    },
+    "payment": {
+      "type": "object",
+      "required": ["endpoint", "amount", "currency"],
+      "additionalProperties": true,
+      "description": "The payment offer for this resource, plus the site-level mechanism needed to act on it. Note that `amount`, `currency` and `chain` are resource-scoped — they describe this offer — while `accepted_chains` and `accepted_currencies` are site-scoped capability. See CONCEPT.md.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 2048,
+          "description": "Where payment is submitted or verified. SHOULD be same-origin with the priced resource."
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^[0-9]{1,12}(\\.[0-9]{1,8})?$",
+          "description": "Price for this resource as a decimal string, avoiding binary float representation error. Non-negative."
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 16,
+          "description": "Currency or asset symbol for this offer, e.g. USDC, BTC."
+        },
+        "chain": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Settlement network for this offer, e.g. base, ethereum, lightning."
+        },
+        "rail": {
+          "type": "string",
+          "enum": ["x402", "l402", "mpp"],
+          "description": "Explicit payment rail. Emitted by the reference server, derived from the same branch that selects the payment verifier. Remains optional in this schema: servers omitting it leave a consumer to map `chain` to a rail itself, which is workable today but ambiguous where two rails share a settlement network. A consumer encountering an unrecognised value is expected to decline rather than improvise."
+        },
+        "accepted_chains": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "maxLength": 32 },
+          "description": "Site-level capability: all settlement networks this site accepts. Not scoped to this resource. Duplicates mechanism declared in /mdf.json, repeated here to save a round trip."
+        },
+        "accepted_currencies": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "maxLength": 16 },
+          "description": "Site-level capability: all currencies or assets this site accepts. Not scoped to this resource."
+        },
+        "recipient": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Optional rail-specific payee identifier where the endpoint does not resolve it: EVM address for x402, node pubkey or LSP identifier for l402."
+        },
+        "session_nonce": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Opaque value binding a subsequent payment proof to this specific offer."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 timestamp after which this offer is no longer valid. Emitted by the reference server, derived from the same validity window the `session_nonce` is bound to. Consumers that queue or defer a payment should honour it rather than assuming an offer stands indefinitely."
+        },
+        "invoice": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "L402 only. BOLT11 Lightning invoice."
+        },
+        "macaroon": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "L402 only. Bearer credential presented alongside the payment preimage."
+        }
+      }
+    },
+    "savings": {
+      "type": "object",
+      "required": ["source_bytes", "markdown_bytes", "reduction_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "source_bytes": { "$ref": "#/$defs/byteCount" },
+        "markdown_bytes": { "$ref": "#/$defs/byteCount" },
+        "reduction_pct": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 100,
+          "description": "(1 - markdown_bytes / source_bytes) * 100, one decimal place. May be negative where conversion increases size."
+        }
+      }
+    }
+  }
+}
