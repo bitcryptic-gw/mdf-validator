@@ -11,12 +11,6 @@ Fetches `/mdf.json` from a site, validates it against the MDF schema, checks `/l
 
 ## Install
 
-### Run directly with Bun
-
-```bash
-bun run https://raw.githubusercontent.com/bitcryptic-gw/mdf-validator/main/src/index.ts -- https://your-site.com
-```
-
 ### Build a standalone binary
 
 ```bash
@@ -28,7 +22,16 @@ bun run build:linux    # linux x64
 bun run build:mac      # macOS arm64
 ```
 
-The compiled binary has no runtime dependencies — copy it anywhere.
+The compiled binary has no runtime dependencies — dependencies (including the
+Ajv JSON Schema validator) are bundled in at compile time, so the binary can be
+copied anywhere. Building from source requires `bun install` first; the
+committed `bun.lock` pins the dependency set.
+
+To run from source instead:
+
+```bash
+bun run src/index.ts -- https://your-site.com
+```
 
 ---
 
