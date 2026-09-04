@@ -10,6 +10,7 @@
  */
 
 import type { ValidationResult } from "./index.ts";
+import { validate402Body } from "./validator.ts";
 
 const REQUIRED_HEADERS = ["x-mdf-version"] as const;
 const EXPECTED_CONTENT_TYPE = "text/markdown";
@@ -63,6 +64,10 @@ function globToRegex(pattern: string): RegExp {
 
 function isFree(rule: PriceRule | null): boolean {
   return rule !== null && parseFloat(String(rule.amount)) === 0;
+}
+
+function isPriced(rule: PriceRule | null): boolean {
+  return rule !== null && parseFloat(String(rule.amount)) > 0;
 }
 
 /**
@@ -122,6 +127,7 @@ export async function checkHeaders(
   const llmsUrls = llmsText ? parseLlmsUrls(baseUrl, llmsText) : [];
 
   const freeUrls = llmsUrls.filter((u) => isFree(priceForPath(new URL(u).pathname, mdfDoc)));
+  const pricedUrls = llmsUrls.filter((u) => isPriced(priceForPath(new URL(u).pathname, mdfDoc)));
 
   // A free URL for the header checks: prefer a real listed URL, then fall back
   // to the site root only when the root itself is free.
@@ -189,6 +195,21 @@ export async function checkHeaders(
     }
   }
 
+  // A priced URL to exercise the 402 path. Only real listed URLs qualify; the
+  // 402 body is returned pre-payment, so this costs nothing to probe.
+  if (pricedUrls.length === 0) {
+    results.push({
+      pass: true,
+      level: "info",
+      label: `${baseUrl} (402 check)`,
+      message: llmsUrls.length === 0
+        ? "skipped — no /llms.txt to resolve a priced URL from"
+        : "skipped — no priced content URL found in /llms.txt",
+    });
+  } else {
+    await check402Response(pricedUrls[0], timeout, results);
+  }
+
   return results;
 }
 
@@ -213,4 +234,88 @@ async function probeContentUrl(
   } catch {
     return null;
   }
+}
+
+/**
+ * Fetch a priced URL and classify the outcome. The cases are deliberately
+ * distinct because each means something different.
+ */
+async function check402Response(
+  url: string,
+  timeout: number,
+  results: ValidationResult[]
+): Promise<void> {
+  let res: Response;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    res = await fetch(url, {
+      headers: { Accept: "text/markdown, text/html;q=0.9" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+  } catch (err: any) {
+    results.push({
+      pass: false,
+      level: "warn",
+      label: `${url} (402 check)`,
+      message:
+        err?.name === "AbortError"
+          ? "timed out — inconclusive"
+          : "fetch failed — inconclusive",
+    });
+    return;
+  }
+
+  const label = `${url} (402 check)`;
+
+  if (res.status === 402) {
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      results.push({
+        pass: false,
+        level: "error",
+        label,
+        message: "returned 402 but body is not valid JSON",
+      });
+      return;
+    }
+    const errors = validate402Body(body);
+    if (errors.length > 0) {
+      results.push({
+        pass: false,
+        level: "error",
+        label,
+        message: "402 body failed mdf-402.schema.json validation",
+        errors,
+      });
+    } else {
+      results.push({
+        pass: true,
+        level: "info",
+        label,
+        message: "402 body validates against mdf-402.schema.json",
+      });
+    }
+    return;
+  }
+
+  if (res.status === 200) {
+    results.push({
+      pass: false,
+      level: "error",
+      label,
+      message: "served paid content with HTTP 200 and no 402 — payment gate not enforced",
+    });
+    return;
+  }
+
+  results.push({
+    pass: false,
+    level: "warn",
+    label,
+    message: `returned HTTP ${res.status} — no 402 to validate, inconclusive`,
+  });
 }
