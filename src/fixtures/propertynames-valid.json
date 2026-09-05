@@ -8,6 +8,11 @@
       "/premium/*": { "amount": "1.0000", "currency": "USDC", "chain": "base" }
     }
   },
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "accepted_chains": ["base", "lightning"],
+    "accepted_currencies": ["USDC", "BTC"]
+  },
   "auth": {
     "endpoint": "https://example.com/mdf/auth",
     "token_ttl_seconds": 86400,

@@ -6,6 +6,16 @@
   "type": "object",
   "required": ["mdf_version", "site", "pricing"],
   "additionalProperties": false,
+  "if": {
+    "not": {
+      "properties": {
+        "pricing": { "$ref": "#/$defs/pricing_all_free" }
+      }
+    }
+  },
+  "then": {
+    "required": ["payment"]
+  },
 
   "properties": {
 
@@ -64,7 +74,7 @@
 
     "payment": {
       "type": "object",
-      "description": "Payment endpoint configuration. Required if any price_entry has a non-zero amount.",
+      "description": "Payment endpoint configuration. Required when any price entry has a non-zero amount — enforced by the root-level conditional ($defs/pricing_all_free), so a priced site cannot declare prices with nowhere to pay.",
       "additionalProperties": false,
       "properties": {
 
@@ -254,6 +264,33 @@
   },
 
   "$defs": {
+
+    "amount_zero": {
+      "type": "string",
+      "pattern": "^0+(\\.0+)?$",
+      "description": "A decimal amount string whose numeric value is zero (e.g. \"0\", \"0.00\", \"0.0000\")."
+    },
+
+    "price_free": {
+      "type": "object",
+      "properties": {
+        "amount": { "$ref": "#/$defs/amount_zero" }
+      }
+    },
+
+    "pricing_all_free": {
+      "type": "object",
+      "description": "True when every price entry in the document — the default and every section override — has a zero amount. Used by the root-level conditional: when this does NOT hold, payment is required.",
+      "required": ["default"],
+      "properties": {
+        "default": { "$ref": "#/$defs/price_free" },
+        "sections": {
+          "type": "object",
+          "patternProperties": { "^/": { "$ref": "#/$defs/price_free" } },
+          "additionalProperties": { "$ref": "#/$defs/price_free" }
+        }
+      }
+    },
 
     "price_entry": {
       "type": "object",
