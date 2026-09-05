@@ -94,6 +94,26 @@ Exit code is `0` if all checks pass or warn, `1` if any check fails.
 
 ---
 
+## How `--check-headers` picks its URLs
+
+The header and 402 checks never fabricate a URL from a pricing glob — a free
+`/docs/**` tier does not imply `/docs` exists. Probe URLs are resolved from
+the target's `/llms.txt`, restricted to the target's own origin; when
+`/llms.txt` is absent or lists nothing usable, the site root is the fallback.
+
+- **Free URL** (for the header checks): the first listed URL whose price is
+  zero, else the site root when the root is free.
+- **Priced URL** (for the 402 check): the first listed URL with a non-zero
+  price. A 402 is returned pre-payment, so probing it costs nothing. If no
+  priced URL is listed, the check reports a distinct "skipped" message rather
+  than a pass.
+
+Only same-origin URLs are probed; external URLs that happen to appear in
+`/llms.txt` are ignored. This follows the spec's Validator Guidance
+(CONCEPT.md).
+
+---
+
 ## What it checks
 
 | Check | Always | --check-headers |
