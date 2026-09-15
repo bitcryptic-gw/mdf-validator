@@ -102,3 +102,28 @@ test("402 token_estimate without token_estimate_note violates dependentRequired"
   expect(errors.length).toBeGreaterThan(0);
   expect(errors.join("\n")).toContain("token_estimate_note");
 });
+
+// ---------------------------------------------------------------------------
+// x402-superset fields conditional (MDF 0.2.0 — Vikunja #28)
+//
+// mdf-402.schema.json's payment.allOf/if/then requires pay_to, asset, scheme
+// and max_timeout_seconds when rail is "x402". These fixtures were added
+// when the vendored schema copy was synced with the spec's 0.2.0 update
+// (previously stale since 2026-09-05, missing this entire conditional — see
+// Vikunja #28). "402 valid body passes" above already covers the positive
+// x402 case now that valid.json carries all four fields.
+// ---------------------------------------------------------------------------
+
+test("402 x402 offer missing the superset fields fails the conditional", () => {
+  const errors = validate402Body(p402("invalid-x402-missing-superset-fields.json"));
+  expect(errors.length).toBeGreaterThan(0);
+  const joined = errors.join("\n");
+  expect(joined).toContain("pay_to");
+  expect(joined).toContain("asset");
+  expect(joined).toContain("scheme");
+  expect(joined).toContain("max_timeout_seconds");
+});
+
+test("402 l402 offer is not required to carry the x402-superset fields", () => {
+  expect(validate402Body(p402("valid-l402-no-superset-fields-required.json"))).toEqual([]);
+});

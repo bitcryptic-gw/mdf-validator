@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/bitcryptic-gw/mdf/mdf-402.schema.json",
   "title": "MDF 402 Payment Required response body",
-  "description": "Describes the JSON body a server emits with a 402 Payment Required response to an Accept: text/markdown request. This schema describes server output; it places no obligation on consumers. Note that `format` is annotation-only in Draft 2020-12 unless the validator registers a format plugin — the accompanying `pattern` on each string field is the load-bearing constraint and is what implementors should rely on.",
+  "description": "Describes the JSON body a server emits with a 402 Payment Required response to an Accept: text/markdown request. This schema describes server output; it places no obligation on consumers. Note that `format` is annotation-only in Draft 2020-12 unless the validator registers a format plugin — the accompanying `pattern` on each string field is the load-bearing constraint and is what implementors should rely on. For the x402 rail specifically, the `payment` object is a superset of the standard x402 `PaymentRequirements` shape (see x402.org) — `pay_to`, `asset`, `scheme`, `max_timeout_seconds` and `extra` map directly onto their x402 equivalents, so a compliant facilitator's `/verify` and `/settle` endpoints can be called directly using these fields without translation.",
   "type": "object",
   "required": ["payment"],
   "additionalProperties": true,
@@ -94,6 +94,32 @@
           "enum": ["x402", "l402", "mpp"],
           "description": "Explicit payment rail. Emitted by the reference server, derived from the same branch that selects the payment verifier. Remains optional in this schema: servers omitting it leave a consumer to map `chain` to a rail itself, which is workable today but ambiguous where two rails share a settlement network. A consumer encountering an unrecognised value is expected to decline rather than improvise."
         },
+        "pay_to": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Payee address for this offer, in the format the rail expects (0x-prefixed checksum EVM address for x402; base58 for Solana). REQUIRED when rail is x402. Equivalent to x402 PaymentRequirements.payTo. Distinct from `recipient`, which is a looser, rail-agnostic identifier retained for non-x402 rails (e.g. Lightning node pubkey for l402) — `pay_to` is the strict x402-compatible form."
+        },
+        "asset": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "The asset being paid, as the rail's native identifier — an ERC-20 contract address for x402 on EVM chains (e.g. USDC's contract address on the stated chain), not a currency symbol. REQUIRED when rail is x402. Equivalent to x402 PaymentRequirements.asset. Distinct from `currency`, which remains the human-readable symbol (e.g. 'USDC') for display and non-x402 rails."
+        },
+        "scheme": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The x402 payment scheme (e.g. 'exact', 'upto'), governing how the payment payload must be constructed and verified. REQUIRED when rail is x402. Equivalent to x402 PaymentRequirements.scheme. Distinct from `rail`, which names the protocol (x402 vs l402 vs mpp) — `scheme` names the variant within x402 itself."
+        },
+        "max_timeout_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400,
+          "description": "Maximum time in seconds the resource server will wait for settlement before this offer lapses. REQUIRED when rail is x402. Equivalent to x402 PaymentRequirements.maxTimeoutSeconds. Distinct from `expires_at`, which is MDF's own absolute-timestamp convenience field bound to the same offer window — servers emitting both should derive them from the same underlying validity window rather than tracking two independent lifetimes."
+        },
+        "extra": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Scheme-specific verification data, opaque to MDF itself and passed through as-is to the x402 facilitator's /verify endpoint. Optional — present only when the active scheme/network combination requires it (e.g. a Solana 'exact' payment's feePayer). Equivalent to x402 PaymentRequirements.extra."
+        },
         "accepted_chains": {
           "type": "array",
           "maxItems": 32,
@@ -131,7 +157,18 @@
           "maxLength": 8192,
           "description": "L402 only. Bearer credential presented alongside the payment preimage."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "rail": { "const": "x402" } },
+            "required": ["rail"]
+          },
+          "then": {
+            "required": ["pay_to", "asset", "scheme", "max_timeout_seconds"]
+          }
+        }
+      ]
     },
     "savings": {
       "type": "object",

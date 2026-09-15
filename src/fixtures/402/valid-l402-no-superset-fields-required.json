@@ -1,0 +1,15 @@
+{
+  "resource": "https://example.com/micropayment/intro",
+  "mdf_version": "1.0",
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "amount": "0.00000001",
+    "currency": "BTC",
+    "chain": "lightning",
+    "rail": "l402",
+    "accepted_chains": ["lightning"],
+    "accepted_currencies": ["BTC"],
+    "invoice": "lnbc1000n1p0...",
+    "macaroon": "AgELbWFjYXJvb24_placeholder"
+  }
+}

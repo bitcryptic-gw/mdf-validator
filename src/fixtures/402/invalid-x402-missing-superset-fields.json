@@ -1,0 +1,13 @@
+{
+  "resource": "https://example.com/premium/deep-dive",
+  "mdf_version": "1.0",
+  "payment": {
+    "endpoint": "https://example.com/mdf/pay",
+    "amount": "1.0000",
+    "currency": "USDC",
+    "chain": "base",
+    "rail": "x402",
+    "accepted_chains": ["base"],
+    "accepted_currencies": ["USDC"]
+  }
+}
