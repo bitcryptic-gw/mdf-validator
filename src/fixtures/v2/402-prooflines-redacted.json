@@ -1,0 +1,44 @@
+{
+  "note": "Redacted shape of https://prooflines.org/monad/x402/concentration-hhi from mdf-prooflines-x402-interop-run-2026-11-08 (testnet). Values as recorded; no live request is made by the tests.",
+  "url": "https://prooflines.org/monad/x402/concentration-hhi",
+  "body": {
+    "x402Version": 2,
+    "error": "PAYMENT-SIGNATURE header is required",
+    "resource": {
+      "url": "https://prooflines.org/monad/x402/concentration-hhi",
+      "description": "Monad network concentration (HHI) (redacted capture)",
+      "mimeType": "application/json"
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:10143",
+        "amount": "3000",
+        "asset": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+        "payTo": "0x7e3a2040F8D13a425E93C797630aB9828B59c806",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "name": "USDC",
+          "version": "2"
+        }
+      },
+      {
+        "scheme": "monad-native-exact",
+        "network": "monad-testnet",
+        "amount": "3000000000000000",
+        "asset": "native",
+        "payTo": "0x7e3a2040F8D13a425E93C797630aB9828B59c806",
+        "maxTimeoutSeconds": 900,
+        "extra": {
+          "chainId": 10143
+        }
+      }
+    ]
+  },
+  "headers": {
+    "payment-required": "$BODY",
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+    "content-type": "application/json; charset=utf-8"
+  }
+}

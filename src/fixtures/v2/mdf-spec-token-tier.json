@@ -1,0 +1,47 @@
+{
+  "note": "Spec 0.3.0 example, examples/mdf-token-tier.json at PR #5.",
+  "url": "https://example.com",
+  "body": {
+    "mdf_version": "0.3.0",
+    "site": "https://example.com",
+    "name": "Example MDF Site \u2014 token tier (fabricated example)",
+    "pricing": {
+      "default": {
+        "rails": [
+          {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "amount": "100"
+          }
+        ]
+      },
+      "sections": {
+        "/docs/**": {
+          "rails": []
+        },
+        "/private/**": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "100000000"
+            }
+          ],
+          "access": "token"
+        }
+      }
+    },
+    "auth": {
+      "endpoint": "https://example.com/mdf/auth",
+      "token_ttl_seconds": 86400
+    },
+    "content_signals": {
+      "ai_train": false,
+      "ai_input": true,
+      "search": true
+    },
+    "llms_txt": "https://example.com/llms.txt"
+  }
+}

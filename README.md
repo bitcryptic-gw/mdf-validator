@@ -4,8 +4,8 @@ CLI tool to validate MDF (Markdown First) site compliance.
 
 Fetches `/mdf.json` from a site, validates it against the MDF schema, checks `/llms.txt` reachability, and optionally verifies that content URLs respond with correct MDF headers.
 
-**Spec:** https://github.com/bitcryptic-gw/mdf  
-**Status:** v0.1.0 — schema validation + header checks
+**Spec:** https://github.com/bitcryptic-gw/mdf (0.3.0 / x402 v2)  
+**Status:** v0.2.0 — spec 0.3.0: per-rail x402 v2 checks, `PAYMENT-REQUIRED`, v1 tolerance
 
 ---
 
@@ -41,8 +41,17 @@ bun run src/index.ts -- https://your-site.com
 # Validate /mdf.json schema
 mdf-validate https://mdf-demo.bitcryptic.com
 
-# Also check MDF response headers on a content URL
+# Check /llms.txt, free-content headers, and every discoverable 402
 mdf-validate --check-headers https://mdf-demo.bitcryptic.com
+
+# Probe a specific priced URL (repeatable; implies --check-headers)
+mdf-validate --priced-url https://example.com/premium https://example.com
+
+# Check a captured paid 200 (no payment is made by the validator)
+mdf-validate --paid-response capture.json https://example.com
+
+# Be polite when probing someone else's site
+mdf-validate --check-headers --delay 2000 https://prooflines.org
 
 # Machine-readable JSON output
 mdf-validate --json https://mdf-demo.bitcryptic.com
@@ -90,29 +99,60 @@ mdf-validate --timeout 5000 https://mdf-demo.bitcryptic.com
 }
 ```
 
-Exit code is `0` if all checks pass or warn, `1` if any check fails.
+Exit code is `0` if all checks pass or warn, `1` if any check fails at error
+level. A missing `/mdf.json`, a non-standard rail, an unverifiable network and
+a CORS expose-list omission are warnings.
 
 ---
 
-## How `--check-headers` picks its URLs
+## How the 402 checks pick their URLs
 
-The header and 402 checks never fabricate a URL from a pricing glob — a free
-`/docs/**` tier does not imply `/docs` exists. Probe URLs are resolved from
-the target's `/llms.txt`, restricted to the target's own origin; when
-`/llms.txt` is absent or lists nothing usable, the site root is the fallback.
+Probe URLs are never fabricated from a pricing glob — a free `/docs/**` tier
+does not imply `/docs` exists. Four sources are used, in priority order, and
+de-duplicated by path:
 
-- **Free URL** (for the header checks): the first listed URL whose price is
-  zero, else the site root when the root is free.
-- **Priced URL** (for the 402 check): the first listed URL with a non-zero
-  price. A 402 is returned pre-payment, so probing it costs nothing. If no
-  priced URL is listed, the check reports a distinct "skipped" message rather
-  than a pass.
+1. `--priced-url <url>`, repeated (the operator asserting "this is priced").
+2. `/.well-known/x402` — the site's own index of paid resources. This is what
+   a non-MDF x402 publisher actually serves, and it is why the 402 checks work
+   on a site with no `/mdf.json`.
+3. `/mdf.json` pricing — sections whose `rails` are non-empty, matched against
+   real `/llms.txt` URLs.
+4. `/llms.txt` — entries whose trailing note says 402/x402/paid.
 
-Only same-origin URLs are probed; external URLs that happen to appear in
-`/llms.txt` are ignored. This follows the spec's Validator Guidance
-(CONCEPT.md).
+At most 10 URLs are probed per run (`--max-probes` is not exposed; the cap is a
+constant). `--delay <ms>` spaces the probes; use 2000 on third-party sites.
+
+The `/mdf.json` check is **not** a gate. The x402 checks run whether or not it
+parses, and a 200 that is not JSON says so explicitly, including the "served as
+text/html" case that means an SPA fallback answered the request.
+
+Its **severity depends on what else the site says**. A missing or unparseable
+`/mdf.json` is a warning when there is no other MDF signal — plenty of x402
+publishers are not MDF sites, and they should not fail for it. It is an error
+when the site signals MDF elsewhere: any response carries `X-MDF-Version`,
+`/llms.txt` references `mdf.json`, or a 402 carries `extensions.mdf`. The
+message names the signal that triggered the upgrade.
 
 ---
+
+## What it checks
+
+| Check | Where |
+|-------|-------|
+| `/mdf.json` present, JSON, valid against the schema for the version it declares | always |
+| `/llms.txt` reachable | `--check-headers` |
+| Free content URL returns `text/markdown`, `X-MDF-Version` present | `--check-headers` |
+| 402 body is a valid x402 v2 `PaymentRequired` (closed root, open `accepts[]`, open `extensions`) | `--check-headers` / `--priced-url` |
+| `PAYMENT-REQUIRED` decodes, validates, and agrees with the body field for field | same |
+| Each rail: known scheme+network fully checked; unknown scheme/network warns per rail and never fails the offer | same |
+| CAIP-2 networks parsed; legacy names (`base`, `base-sepolia`) normalised for comparison | same |
+| Asset and **EIP-712 domain** (`extra.name`/`extra.version`) per network — mainnet USDC is `"USD Coin"`, Sepolia `"USDC"` | same |
+| `accepts[]` matches `/mdf.json` rails one-to-one (missing rail warns, extra/mismatched fails) | same, MDF 0.3 sites |
+| `access: "token"` requires `auth.endpoint`; price summary agrees with `accepts[]`; 402 is `no-store`; `X-MDF-Version` present | same, MDF 0.3 sites |
+| x402 v1 / MDF 0.2 shape: normalised and reported as legacy (failure only if the site declares MDF 0.3.x) | same |
+| `PAYMENT-RESPONSE` present and conformant on a captured paid 200 | `--paid-response` |
+
+Warnings never fail a run.
 
 ## What it checks
 
@@ -124,6 +164,13 @@ Only same-origin URLs are probed; external URLs that happen to appear in
 | `/llms.txt` reachable | ✅ | ✅ |
 | Free content URL returns `text/markdown` | — | ✅ |
 | `X-MDF-Version` header present | — | ✅ |
+
+---
+
+## Vendored upstream
+
+Schemas and the per-network asset table are vendored, never fetched at runtime.
+Every file, its source commit and its sha256: `src/vendor/SOURCES.md`.
 
 ---
 

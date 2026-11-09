@@ -1,0 +1,90 @@
+{
+  "note": "Spec 0.3.0 example, examples/402-dual-rail-usdc-lightning.json at PR #5 (canonical USDC contracts, per-network EIP-712 names).",
+  "url": "https://example.com/micropayment/intro",
+  "body": {
+    "x402Version": 2,
+    "error": "PAYMENT-SIGNATURE header is required",
+    "resource": {
+      "url": "https://example.com/micropayment/intro",
+      "description": "Micropayment-tier introduction, served as markdown (fabricated example)",
+      "mimeType": "text/markdown",
+      "serviceName": "Example MDF Site",
+      "tags": [
+        "documentation",
+        "example"
+      ]
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "1000",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "payTo": "0x3333333333333333333333333333333333333333",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "assetTransferMethod": "eip3009",
+          "name": "USD Coin",
+          "version": "2"
+        }
+      },
+      {
+        "scheme": "exact",
+        "network": "lnbtc:000000000019d6689c085ae165831e93",
+        "amount": "1000",
+        "asset": "BTC",
+        "payTo": "020000000000000000000000000000000000000000000000000000000000000000",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "assetTransferMethod": "bolt11",
+          "paymentFlow": "upfront",
+          "invoice": "lnbc1u1p3examplepp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsp5zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzdqxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "requestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "requestBindingProfile": "http:1",
+          "requestBindingParams": {
+            "headers": []
+          }
+        }
+      }
+    ],
+    "extensions": {
+      "mdf": {
+        "info": {
+          "version": "0.3.0",
+          "source_bytes": 2040,
+          "expires_at": "2026-11-08T12:05:00Z",
+          "price_summary": "0.001 USDC on Base (eip155:8453), or 1 satoshi (0.00000001 BTC) over Lightning"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "version",
+            "price_summary"
+          ],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "price_summary": {
+              "type": "string"
+            },
+            "source_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "headers": {
+    "payment-required": "$BODY",
+    "cache-control": "no-store",
+    "x-mdf-version": "1",
+    "content-type": "application/json"
+  }
+}

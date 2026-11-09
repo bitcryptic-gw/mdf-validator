@@ -1,0 +1,123 @@
+{
+  "note": "Header encodes a different amount from the body.",
+  "url": "https://example.com/premium/deep-dive",
+  "body": {
+    "x402Version": 2,
+    "error": "PAYMENT-SIGNATURE header is required",
+    "resource": {
+      "url": "https://example.com/premium/deep-dive",
+      "description": "Premium deep-dive article, served as markdown (fabricated example)",
+      "mimeType": "text/markdown",
+      "serviceName": "Example MDF Site",
+      "tags": [
+        "documentation",
+        "example"
+      ]
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "10000",
+        "asset": "0x1111111111111111111111111111111111111111",
+        "payTo": "0x3333333333333333333333333333333333333333",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "assetTransferMethod": "eip3009",
+          "name": "USD Coin",
+          "version": "2"
+        }
+      }
+    ],
+    "extensions": {
+      "mdf": {
+        "info": {
+          "version": "0.3.0",
+          "source_bytes": 48213,
+          "price_summary": "0.01 USDC on Base (eip155:8453)"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "version",
+            "price_summary"
+          ],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "price_summary": {
+              "type": "string"
+            },
+            "source_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "headers": {
+    "payment-required": null,
+    "cache-control": "no-store",
+    "x-mdf-version": "1"
+  },
+  "headerBody": {
+    "x402Version": 2,
+    "error": "PAYMENT-SIGNATURE header is required",
+    "resource": {
+      "url": "https://example.com/premium/deep-dive",
+      "description": "Premium deep-dive article, served as markdown (fabricated example)",
+      "mimeType": "text/markdown",
+      "serviceName": "Example MDF Site",
+      "tags": [
+        "documentation",
+        "example"
+      ]
+    },
+    "accepts": [
+      {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": "9999",
+        "asset": "0x1111111111111111111111111111111111111111",
+        "payTo": "0x3333333333333333333333333333333333333333",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "assetTransferMethod": "eip3009",
+          "name": "USD Coin",
+          "version": "2"
+        }
+      }
+    ],
+    "extensions": {
+      "mdf": {
+        "info": {
+          "version": "0.3.0",
+          "source_bytes": 48213,
+          "price_summary": "0.01 USDC on Base (eip155:8453)"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "version",
+            "price_summary"
+          ],
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "price_summary": {
+              "type": "string"
+            },
+            "source_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

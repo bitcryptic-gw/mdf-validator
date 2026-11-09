@@ -1,0 +1,43 @@
+{
+  "note": "access: token with no auth object. The schema and the direct rule must both reject it.",
+  "url": "https://example.com",
+  "body": {
+    "mdf_version": "0.3.0",
+    "site": "https://example.com",
+    "name": "Example MDF Site \u2014 token tier (fabricated example)",
+    "pricing": {
+      "default": {
+        "rails": [
+          {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "asset": "0x1111111111111111111111111111111111111111",
+            "amount": "100"
+          }
+        ]
+      },
+      "sections": {
+        "/docs/**": {
+          "rails": []
+        },
+        "/private/**": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x1111111111111111111111111111111111111111",
+              "amount": "100000000"
+            }
+          ],
+          "access": "token"
+        }
+      }
+    },
+    "content_signals": {
+      "ai_train": false,
+      "ai_input": true,
+      "search": true
+    },
+    "llms_txt": "https://example.com/llms.txt"
+  }
+}
