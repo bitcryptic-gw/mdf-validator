@@ -19,6 +19,8 @@ import { evaluatePaidResponse } from "./evaluate.ts";
 import type { ResponseHeaders } from "./evaluate.ts";
 import { formatText, formatJson } from "./output.ts";
 import type { ValidationResult } from "./result.ts";
+import { applyMdfSignals, dedupeSignals } from "./mdf-signal.ts";
+import type { MdfSignal } from "./mdf-signal.ts";
 
 export type { ValidationResult } from "./result.ts";
 
@@ -193,6 +195,7 @@ async function main() {
   }
 
   const results: ValidationResult[] = [];
+  const signals: MdfSignal[] = [];
 
   // 1. /mdf.json — its own result. Never a gate for anything below (finding B1).
   const mdfResult = await validateMdfJson(baseUrl, timeout);
@@ -207,9 +210,23 @@ async function main() {
         pricedUrls,
         mdfMajor: mdfResult.major,
         delayMs,
+        signalSink: (signal) => signals.push(signal),
       }))
     );
   }
+
+  // A missing /mdf.json is a warning only when the site gives no other MDF
+  // signal; if it does, the missing document is a real defect. Severity only —
+  // every check above still ran.
+  if (mdfResult.xMdfVersionHeader) {
+    signals.push({
+      kind: "x-mdf-version",
+      label: `X-MDF-Version: ${mdfResult.xMdfVersionHeader} on /mdf.json`,
+      where: `${baseUrl}/mdf.json`,
+    });
+  }
+  const mdfIndex = results.indexOf(mdfResult);
+  if (mdfIndex >= 0) results[mdfIndex] = applyMdfSignals(mdfResult, dedupeSignals(signals));
 
   // 3. Captured paid 200, if supplied.
   if (paidResponse) {

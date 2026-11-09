@@ -42,6 +42,14 @@ export interface MdfJsonResult extends ValidationResult {
   major?: SpecMajor;
   /** The page was served as HTML — the D1 "SPA fallback" case. */
   htmlFallback?: boolean;
+  /**
+   * Set when there is no usable capability document, phrased as the tail of
+   * the severity message ("… but /mdf.json is missing (HTTP 404)"). Only these
+   * results are upgraded by an MDF signal elsewhere on the site.
+   */
+  unavailable?: string;
+  /** `X-MDF-Version` observed on the /mdf.json response itself, if any. */
+  xMdfVersionHeader?: string;
 }
 
 export async function validateMdfJson(baseUrl: string, timeout: number): Promise<MdfJsonResult> {
@@ -50,6 +58,7 @@ export async function validateMdfJson(baseUrl: string, timeout: number): Promise
   let body: string;
   let status: number;
   let contentType: string;
+  let xMdfVersion: string | undefined;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -60,6 +69,7 @@ export async function validateMdfJson(baseUrl: string, timeout: number): Promise
     clearTimeout(timer);
     status = res.status;
     contentType = res.headers.get("content-type") ?? "";
+    xMdfVersion = res.headers.get("x-mdf-version") ?? undefined;
     body = await res.text();
   } catch (err: any) {
     return {
@@ -70,20 +80,29 @@ export async function validateMdfJson(baseUrl: string, timeout: number): Promise
     };
   }
 
+  // A missing document is a warning by default: plenty of x402 publishers are
+  // not MDF sites, and failing them for that is the B1 bug in another form.
+  // The CLI upgrades this to an error when the site signals MDF elsewhere.
   if (status === 404) {
-    // No /mdf.json is not a defect: plenty of x402 publishers are not MDF
-    // sites. The x402 checks still run below (finding B1) — this result is a
-    // statement about MDF conformance, not a gate.
     return {
       pass: false,
       level: "warn",
       label: mdfUrl,
-      message: "HTTP 404 — no MDF capability document; not an MDF site (x402 checks are independent)",
+      message: "HTTP 404 — no MDF capability document; not an MDF site unless it signals otherwise (x402 checks are independent)",
+      unavailable: "/mdf.json is missing (HTTP 404)",
+      xMdfVersionHeader: xMdfVersion,
     };
   }
 
   if (status !== 200) {
-    return { pass: false, level: "error", label: mdfUrl, message: `HTTP ${status}` };
+    return {
+      pass: false,
+      level: "warn",
+      label: mdfUrl,
+      message: `HTTP ${status} — no capability document to validate`,
+      unavailable: `/mdf.json is unavailable (HTTP ${status})`,
+      xMdfVersionHeader: xMdfVersion,
+    };
   }
 
   let doc: unknown;
@@ -93,21 +112,27 @@ export async function validateMdfJson(baseUrl: string, timeout: number): Promise
     const html = /text\/html/i.test(contentType);
     return {
       pass: false,
-      level: "error",
+      level: "warn",
       label: mdfUrl,
       message: html
         ? `response is not valid JSON (served as ${contentType} — likely an HTML page or SPA fallback, not a capability document)`
         : "response is not valid JSON",
       htmlFallback: html,
+      xMdfVersionHeader: xMdfVersion,
+      unavailable: html
+        ? `/mdf.json is not JSON (served as ${contentType} — an HTML page or SPA fallback)`
+        : "/mdf.json is not JSON",
     };
   }
 
   if (!isObject(doc)) {
     return {
       pass: false,
-      level: "error",
+      level: "warn",
       label: mdfUrl,
       message: "response is JSON but not an object",
+      unavailable: "/mdf.json is JSON but not an object",
+      xMdfVersionHeader: xMdfVersion,
     };
   }
 

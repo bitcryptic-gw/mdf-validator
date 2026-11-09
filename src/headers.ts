@@ -19,6 +19,8 @@ import type { ProbeTarget } from "./discovery.ts";
 import { evaluate402Response } from "./evaluate.ts";
 import { DEFAULT_MAX_PROBES, parseLlmsEntries } from "./discovery.ts";
 import { USER_AGENT } from "./user-agent.ts";
+import { extensionSignal, headerSignal, llmsSignal } from "./mdf-signal.ts";
+import type { MdfSignal } from "./mdf-signal.ts";
 
 const REQUIRED_HEADERS = ["x-mdf-version"] as const;
 const EXPECTED_CONTENT_TYPE = "text/markdown";
@@ -30,6 +32,11 @@ export interface HeaderCheckOptions {
   maxProbes?: number;
   /** Minimum gap between 402 probes, in milliseconds. Polite when probing someone else's site. */
   delayMs?: number;
+  /**
+   * Collected evidence that the target is an MDF site. The CLI uses it to
+   * decide the severity of a missing /mdf.json; it never gates a check.
+   */
+  signalSink?: (signal: MdfSignal) => void;
 }
 
 async function fetchText(url: string, timeout: number): Promise<string | null> {
@@ -52,6 +59,21 @@ function isFreePath(path: string, mdfDoc: Record<string, unknown> | null): boole
   return entry.rails.length === 0;
 }
 
+async function probeHeaderSignal(url: string, timeout: number): Promise<MdfSignal | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, {
+      headers: { Accept: "text/markdown, text/html;q=0.9", "User-Agent": USER_AGENT },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return headerSignal(res.headers, url);
+  } catch {
+    return null;
+  }
+}
+
 export async function checkHeaders(
   baseUrl: string,
   mdfDoc: Record<string, unknown> | null,
@@ -62,6 +84,17 @@ export async function checkHeaders(
   const mdfMajor = opts.mdfMajor ?? specMajorOf(mdfDoc?.mdf_version);
   const llmsText = await fetchText(`${baseUrl}/llms.txt`, timeout);
   const llmsEntries = llmsText ? parseLlmsEntries(baseUrl, llmsText) : [];
+  const llmsSeen = llmsSignal(llmsText, `${baseUrl}/llms.txt`);
+  if (llmsSeen) opts.signalSink?.(llmsSeen);
+
+  // With no /mdf.json there is no pricing map, so nothing tells us which URL is
+  // free and the free-content probe would be skipped — taking the chance to see
+  // `X-MDF-Version` with it. Probe the root for a signal only: the result is
+  // not reported as a header check, so a paid root does not produce noise.
+  if (!mdfDoc) {
+    const rootSignal = await probeHeaderSignal(`${baseUrl}/`, timeout);
+    if (rootSignal) opts.signalSink?.(rootSignal);
+  }
 
   // --- free-content header checks -----------------------------------------
   const freeUrl =
@@ -78,7 +111,7 @@ export async function checkHeaders(
       )
     );
   } else {
-    results.push(...(await probeFreeUrl(freeUrl, timeout)));
+    results.push(...(await probeFreeUrl(freeUrl, timeout, opts.signalSink)));
   }
 
   // --- 402 discovery + evaluation -----------------------------------------
@@ -119,14 +152,18 @@ export async function checkHeaders(
     const gap = opts.delayMs ?? 0;
     for (const [i, target] of targets.entries()) {
       if (i > 0 && gap > 0) await new Promise((r) => setTimeout(r, gap));
-      results.push(...(await probePricedUrl(target, timeout, mdfDoc, mdfMajor)));
+      results.push(...(await probePricedUrl(target, timeout, mdfDoc, mdfMajor, opts.signalSink)));
     }
   }
 
   return results;
 }
 
-async function probeFreeUrl(url: string, timeout: number): Promise<ValidationResult[]> {
+async function probeFreeUrl(
+  url: string,
+  timeout: number,
+  signalSink?: (signal: MdfSignal) => void
+): Promise<ValidationResult[]> {
   const out: ValidationResult[] = [];
   let res: Response;
   try {
@@ -144,6 +181,9 @@ async function probeFreeUrl(url: string, timeout: number): Promise<ValidationRes
   if (res.status !== 200) {
     return [warn(`${url} (free content)`, `returned HTTP ${res.status} — header checks inconclusive`)];
   }
+
+  const seen = headerSignal(res.headers, url);
+  if (seen) signalSink?.(seen);
 
   const contentType = res.headers.get("content-type") ?? "";
   const hasMarkdownType = contentType.startsWith(EXPECTED_CONTENT_TYPE);
@@ -169,7 +209,8 @@ async function probePricedUrl(
   target: ProbeTarget,
   timeout: number,
   mdfDoc: Record<string, unknown> | null,
-  mdfMajor: SpecMajor
+  mdfMajor: SpecMajor,
+  signalSink?: (signal: MdfSignal) => void
 ): Promise<ValidationResult[]> {
   const label = `${target.url} (402, ${target.source})`;
 
@@ -207,6 +248,11 @@ async function probePricedUrl(
   } catch {
     bodyError = raw.trim() === "" ? "body is empty" : "body is not valid JSON";
   }
+
+  const headerSeen = headerSignal(res.headers, target.url);
+  if (headerSeen) signalSink?.(headerSeen);
+  const extensionSeen = extensionSignal(body, target.url);
+  if (extensionSeen) signalSink?.(extensionSeen);
 
   return evaluate402Response({
     url: target.url,

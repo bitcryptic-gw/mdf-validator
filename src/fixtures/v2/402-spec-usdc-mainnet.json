@@ -1,5 +1,5 @@
 {
-  "note": "Spec 0.3.0 example, examples/402-usdc-base-mainnet.json at d5bf772 (after the #66 name correction).",
+  "note": "Spec 0.3.0 example, examples/402-usdc-base-mainnet.json at PR #5 (canonical USDC contracts, per-network EIP-712 names).",
   "url": "https://example.com/premium/deep-dive",
   "body": {
     "x402Version": 2,
@@ -19,7 +19,7 @@
         "scheme": "exact",
         "network": "eip155:8453",
         "amount": "10000",
-        "asset": "0x1111111111111111111111111111111111111111",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         "payTo": "0x3333333333333333333333333333333333333333",
         "maxTimeoutSeconds": 300,
         "extra": {
