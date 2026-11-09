@@ -2,7 +2,7 @@
  * output.ts — format ValidationResult[] as human-readable text or JSON
  */
 
-import type { ValidationResult } from "./index.ts";
+import type { ValidationResult } from "./result.ts";
 
 const PASS = "✅";
 const FAIL = "❌";
