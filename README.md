@@ -122,10 +122,16 @@ de-duplicated by path:
 At most 10 URLs are probed per run (`--max-probes` is not exposed; the cap is a
 constant). `--delay <ms>` spaces the probes; use 2000 on third-party sites.
 
-The `/mdf.json` check is **not** a gate. A 404 there is a warning ("not an MDF
-site") and the x402 checks still run; a 200 that is not JSON says so
-explicitly, including the "served as text/html" case that means an SPA
-fallback answered the request.
+The `/mdf.json` check is **not** a gate. The x402 checks run whether or not it
+parses, and a 200 that is not JSON says so explicitly, including the "served as
+text/html" case that means an SPA fallback answered the request.
+
+Its **severity depends on what else the site says**. A missing or unparseable
+`/mdf.json` is a warning when there is no other MDF signal — plenty of x402
+publishers are not MDF sites, and they should not fail for it. It is an error
+when the site signals MDF elsewhere: any response carries `X-MDF-Version`,
+`/llms.txt` references `mdf.json`, or a 402 carries `extensions.mdf`. The
+message names the signal that triggered the upgrade.
 
 ---
 

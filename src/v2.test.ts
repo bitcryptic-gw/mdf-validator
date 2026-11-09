@@ -83,21 +83,21 @@ const joined = (rs: ReturnType<typeof evaluate>) => rs.map((r) => `${r.label} â€
 // Spec examples: the happy path
 // ---------------------------------------------------------------------------
 
-test("spec USDC-mainnet example has no failures (its asset is deliberately fabricated, so it warns)", () => {
+test("spec USDC-mainnet example is entirely clean: no failures, no warnings", () => {
+  // The examples carry the canonical USDC contract, so the asset check is
+  // satisfied rather than "not verifiable" â€” the spec's examples must stay
+  // validator-clean.
   const rs = evaluate(load("402-spec-usdc-mainnet.json"));
   expect(errorsOf(rs)).toEqual([]);
-  expect(rs.some((r) => r.message.includes("token not verifiable, not failed"))).toBe(true);
+  expect(warnsOf(rs)).toEqual([]);
 });
 
-test("spec dual-rail example has no failures, and both rails are evaluated", () => {
+test("spec dual-rail example is clean, and both rails pass", () => {
   const rs = evaluate(load("402-spec-dual-rail.json"));
   expect(errorsOf(rs)).toEqual([]);
   const railLines = rs.filter((r) => r.label.includes("rail "));
   expect(railLines.length).toBe(2);
-  // The Lightning rail passes outright; the EVM rail only warns, because the
-  // example's asset address is deliberately fabricated (not the real USDC).
-  expect(railLines.find((r) => r.label.includes("lnbtc"))?.pass).toBe(true);
-  expect(railLines.find((r) => r.label.includes("eip155:8453"))?.level).toBe("warn");
+  expect(railLines.filter((r) => r.pass).length).toBe(2);
 });
 
 test("spec dual-rail example matches its mdf.json one-to-one", () => {
@@ -106,8 +106,7 @@ test("spec dual-rail example matches its mdf.json one-to-one", () => {
   const rs = evaluate(dual, { mdfDoc: mdf, mdfMajor: "0.3" });
   expect(errorsOf(rs)).toEqual([]);
   expect(joined(rs)).toContain("matches the 2 declared rails");
-  // The only warnings are the fabricated-asset "not verifiable" notes.
-  expect(warnsOf(rs).every((r) => r.message.includes("token not verifiable"))).toBe(true);
+  expect(warnsOf(rs)).toEqual([]);
 });
 
 // ---------------------------------------------------------------------------

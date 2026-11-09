@@ -46,10 +46,16 @@ publisher actually serves, not only what an MDF site declares.
 
 ### Changed — behaviour
 
-- **`/mdf.json` no longer gates the other checks** (finding B1). A 404 there is
-  a **warning** ("not an MDF site") rather than an error, and `/llms.txt`, the
-  header checks and the 402 checks run regardless. An invalid `/mdf.json` is
-  still an error — a site claiming MDF conformance is held to it.
+- **`/mdf.json` no longer gates the other checks** (finding B1). `/llms.txt`,
+  the header checks and the 402 checks run regardless, and an invalid
+  `/mdf.json` is still an error — a site claiming MDF conformance is held to it.
+- **A missing `/mdf.json` is a warning only when the site gives no other MDF
+  signal.** If any response carries `X-MDF-Version`, `/llms.txt` references
+  `mdf.json`, or a 402 carries `extensions.mdf`, the absent document is an
+  **error** and the message names the signal that triggered it (for example
+  "site declares MDF via X-MDF-Version … but /mdf.json is missing (HTTP 404)").
+  Severity only — no check is gated on it. A clean third-party x402 publisher
+  with no MDF signals still exits 0.
 - **A `/mdf.json` served as HTML is reported as what it is** ("response is not
   valid JSON (served as text/html — likely an HTML page or SPA fallback)").
 - **Which `/mdf.json` schema applies is decided by the declared
