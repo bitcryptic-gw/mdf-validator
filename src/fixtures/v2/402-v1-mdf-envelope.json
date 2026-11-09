@@ -1,0 +1,29 @@
+{
+  "note": "Shape of the live 0.2.x demo's mainnet offer (per mdf-status and decision 24: name hardcoded to USDC).",
+  "url": "https://mdf-demo.bitcryptic.com/premium/deep-dive",
+  "body": {
+    "resource": "https://mdf-demo.bitcryptic.com/premium/deep-dive",
+    "mdf_version": "1.0",
+    "source_bytes": 934,
+    "payment": {
+      "endpoint": "https://mdf-demo.bitcryptic.com/mdf/pay",
+      "amount": "0.01",
+      "currency": "USDC",
+      "chain": "base",
+      "rail": "x402",
+      "pay_to": "0xa7D911138322aF8823642beA2b174dFaC2725fB7",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "scheme": "exact",
+      "max_timeout_seconds": 300,
+      "extra": {
+        "name": "USDC",
+        "version": "2"
+      },
+      "expires_at": "2026-11-09T00:00:00Z"
+    }
+  },
+  "headers": {
+    "cache-control": "no-store",
+    "x-mdf-version": "1"
+  }
+}

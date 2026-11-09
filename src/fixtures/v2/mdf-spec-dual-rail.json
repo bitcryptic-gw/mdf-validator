@@ -1,0 +1,62 @@
+{
+  "note": "Spec 0.3.0 example, examples/mdf-dual-rail.json at d5bf772.",
+  "url": "https://example.com",
+  "body": {
+    "mdf_version": "0.3.0",
+    "site": "https://example.com",
+    "name": "Example MDF Site (fabricated example)",
+    "pricing": {
+      "default": {
+        "rails": [
+          {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "asset": "0x1111111111111111111111111111111111111111",
+            "amount": "100"
+          }
+        ]
+      },
+      "sections": {
+        "/docs/**": {
+          "rails": []
+        },
+        "/premium/**": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x1111111111111111111111111111111111111111",
+              "amount": "10000"
+            }
+          ]
+        },
+        "/micropayment/*": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x1111111111111111111111111111111111111111",
+              "amount": "1000"
+            },
+            {
+              "scheme": "exact",
+              "network": "lnbtc:000000000019d6689c085ae165831e93",
+              "asset": "BTC",
+              "amount": "1000"
+            }
+          ]
+        }
+      }
+    },
+    "content_signals": {
+      "ai_train": false,
+      "ai_input": true,
+      "search": true
+    },
+    "formats": {
+      "dialect": "commonmark",
+      "frontmatter": true
+    },
+    "llms_txt": "https://example.com/llms.txt"
+  }
+}
