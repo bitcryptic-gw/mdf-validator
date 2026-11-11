@@ -1,0 +1,57 @@
+{
+  "note": "The USDC-only draft from mdf-57-prooflines-mdf-json-draft-2026-11-11: the native rail omitted. Under the 0.3.1 presence check the live 402's native rail is therefore undeclared.",
+  "url": "https://prooflines.org",
+  "body": {
+    "mdf_version": "0.3.0",
+    "site": "https://prooflines.org",
+    "name": "ProofLines",
+    "llms_txt": "https://prooflines.org/llms.txt",
+    "pricing": {
+      "default": {
+        "rails": []
+      },
+      "sections": {
+        "/monad/x402/*": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:10143",
+              "asset": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              "amount": "3000"
+            }
+          ]
+        },
+        "/monad/x402/network-concentration-report": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:10143",
+              "asset": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              "amount": "10000"
+            }
+          ]
+        },
+        "/monad/x402-mainnet/*": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:143",
+              "asset": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+              "amount": "3000"
+            }
+          ]
+        },
+        "/monad/x402-mainnet/network-concentration-report": {
+          "rails": [
+            {
+              "scheme": "exact",
+              "network": "eip155:143",
+              "asset": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+              "amount": "10000"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

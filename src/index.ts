@@ -6,6 +6,7 @@
  * Usage:
  *   mdf-validate <url>
  *   mdf-validate --check-headers <url>
+ *   mdf-validate --mdf-json <path> <url>
  *   mdf-validate --priced-url <url>... <url>
  *   mdf-validate --paid-response <capture.json> <url>
  *   mdf-validate --json <url>
@@ -13,7 +14,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { validateMdfJson, declaredVersionResult } from "./validator.ts";
+import { validateMdfJson, loadMdfJson, declaredVersionResult } from "./validator.ts";
 import { checkHeaders } from "./headers.ts";
 import { evaluatePaidResponse } from "./evaluate.ts";
 import type { ResponseHeaders } from "./evaluate.ts";
@@ -40,6 +41,10 @@ Options:
                          discoverable priced URL (mdf.json pricing, /llms.txt
                          notes, /.well-known/x402). Runs even if /mdf.json is
                          missing or invalid.
+  --mdf-json <path>      Validate a local mdf.json against the live site, in
+                         place of fetching /mdf.json. Its schema result is
+                         reported the same way, and it is used for the
+                         accepts[]-vs-declaration and token-access checks.
   --priced-url <url>     Probe this URL for a 402. Repeatable. Implies
                          --check-headers.
   --paid-response <file> Check a captured paid 200. The file is JSON:
@@ -69,6 +74,7 @@ interface Args {
   timeout: number;
   pricedUrls: string[];
   paidResponse: string | null;
+  mdfJson: string | null;
   delayMs: number;
 }
 
@@ -80,6 +86,7 @@ function parseArgs(args: string[]): Args {
     timeout: 10000,
     pricedUrls: [],
     paidResponse: null,
+    mdfJson: null,
     delayMs: 0,
   };
 
@@ -118,6 +125,15 @@ function parseArgs(args: string[]): Args {
         process.exit(1);
       }
       out.paidResponse = next;
+      continue;
+    }
+    if (arg === "--mdf-json") {
+      const next = args[++i];
+      if (!next) {
+        console.error("--mdf-json needs a file path");
+        process.exit(1);
+      }
+      out.mdfJson = next;
       continue;
     }
     if (arg === "--delay") {
@@ -176,8 +192,16 @@ async function main() {
     process.exit(1);
   }
 
-  const { url, checkHeaders: doCheckHeaders, jsonOutput, timeout, pricedUrls, paidResponse, delayMs } =
-    parseArgs(args);
+  const {
+    url,
+    checkHeaders: doCheckHeaders,
+    jsonOutput,
+    timeout,
+    pricedUrls,
+    paidResponse,
+    mdfJson,
+    delayMs,
+  } = parseArgs(args);
 
   if (!url) {
     console.error("Error: URL is required");
@@ -198,7 +222,9 @@ async function main() {
   const signals: MdfSignal[] = [];
 
   // 1. /mdf.json — its own result. Never a gate for anything below (finding B1).
-  const mdfResult = await validateMdfJson(baseUrl, timeout);
+  // --mdf-json substitutes a local document for the fetch; everything after
+  // this point treats it exactly like a fetched one.
+  const mdfResult = mdfJson ? loadMdfJson(mdfJson) : await validateMdfJson(baseUrl, timeout);
   results.push(mdfResult);
   const versionLine = declaredVersionResult(mdfResult);
   if (versionLine) results.push(versionLine);

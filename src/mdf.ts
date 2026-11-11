@@ -10,11 +10,13 @@
  */
 
 import { matchesPath } from "./glob.ts";
-import { normaliseLegacyNetwork } from "./network.ts";
+import { normaliseLegacyNetwork, railChainId } from "./network.ts";
 
 export interface DeclaredRail {
   scheme: string;
   network: string;
+  /** `chainId` declared alongside an alias network, when present. */
+  chainId?: unknown;
   asset: string | null;
   amount: string | null;
   /** True when synthesised from a 0.2 `amount`/`currency`/`chain` entry. */
@@ -46,8 +48,10 @@ export function readPriceEntry(key: string, raw: unknown): PriceEntry | null {
       if (!isObject(r)) continue;
       rails.push({
         scheme: typeof r.scheme === "string" ? r.scheme : "",
-        network:
-          typeof r.network === "string" ? normaliseLegacyNetwork(r.network) : "",
+        // Left as written: the comparison normalises it, with the entry's own
+        // chainId taking precedence over the legacy alias table.
+        network: typeof r.network === "string" ? r.network : "",
+        chainId: railChainId(r),
         asset: typeof r.asset === "string" ? r.asset : null,
         amount: typeof r.amount === "string" ? r.amount : null,
         legacy: false,
