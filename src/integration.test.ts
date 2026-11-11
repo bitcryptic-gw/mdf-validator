@@ -11,6 +11,9 @@
  */
 
 import { test, expect, afterAll } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { checkHeaders } from "./headers.ts";
 import { validateMdfJson } from "./validator.ts";
 import { applyMdfSignals, dedupeSignals } from "./mdf-signal.ts";
@@ -130,9 +133,25 @@ function startServer(config: Config) {
  * Spawn the CLI asynchronously: the test server runs in this process, so a
  * blocking spawn would deadlock the event loop that has to answer it.
  */
-async function runCli(base: string): Promise<{ code: number; out: string }> {
+async function runCli(base: string, extra: string[] = []): Promise<{ code: number; out: string }> {
   const proc = Bun.spawn({
-    cmd: [process.execPath, "run", "src/index.ts", "--check-headers", base],
+    cmd: [process.execPath, "run", "src/index.ts", "--check-headers", ...extra, base],
+    cwd: `${import.meta.dir}/..`,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [code, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  return { code, out: `${stdout}${stderr}` };
+}
+
+/** Spawn the CLI with exactly these arguments (no --check-headers unless given). */
+async function runCliRaw(args: string[]): Promise<{ code: number; out: string }> {
+  const proc = Bun.spawn({
+    cmd: [process.execPath, "run", "src/index.ts", ...args],
     cwd: `${import.meta.dir}/..`,
     stdout: "pipe",
     stderr: "pipe",
@@ -202,6 +221,70 @@ test("signal + /mdf.json served as HTML: error, reported as not JSON", async () 
   expect(cli.out).toContain("not JSON");
   expect(cli.out).toContain("text/html");
   expect(cli.out).toContain("site declares MDF via X-MDF-Version");
+});
+
+// ---------------------------------------------------------------------------
+// --mdf-json: a local declaration in place of the fetch
+// ---------------------------------------------------------------------------
+
+function localMdf(doc: Record<string, unknown>): string {
+  const dir = mkdtempSync(join(tmpdir(), "mdf-json-"));
+  const file = join(dir, "mdf.json");
+  writeFileSync(file, JSON.stringify(doc));
+  return file;
+}
+
+test("--mdf-json validates a local document and never fetches /mdf.json", async () => {
+  const base = startServer({ mdf: "missing" });
+  const file = localMdf({
+    mdf_version: "0.3.1",
+    site: base,
+    pricing: { default: { rails: [] } },
+  });
+  const cli = await runCliRaw(["--mdf-json", file, base]);
+  expect(cli.code).toBe(0);
+  expect(cli.out).toContain("valid (MDF v0.3.1)");
+  expect(cli.out).toContain("local document, /mdf.json not fetched");
+  // The site's own /mdf.json is 404; the local document must not be reported as
+  // missing, and the fetch must not have happened.
+  expect(cli.out).not.toContain("no MDF capability document");
+});
+
+test("--mdf-json rejects a local document that fails its own schema", async () => {
+  const base = startServer({ mdf: "missing" });
+  const file = localMdf({ mdf_version: "0.3.1", site: base, pricing: {} });
+  const cli = await runCliRaw(["--mdf-json", file, base]);
+  expect(cli.code).not.toBe(0);
+  expect(cli.out).toContain("schema validation failed");
+  expect(cli.out).toContain("must have required property 'default'");
+});
+
+test("--mdf-json feeds the live accept[] agreement check", async () => {
+  // The server offers one exact/eip155:84532 rail on /paid; the local document
+  // declares a different rail there, so the offer is undeclared.
+  const base = startServer({ mdf: "missing" });
+  const file = localMdf({
+    mdf_version: "0.3.1",
+    site: base,
+    pricing: {
+      default: { rails: [] },
+      sections: {
+        "/paid": {
+          rails: [
+            {
+              scheme: "exact",
+              network: "lnbtc:000000000019d6689c085ae165831e93",
+              asset: "BTC",
+              amount: "1000",
+            },
+          ],
+        },
+      },
+    },
+  });
+  const cli = await runCli(base, ["--mdf-json", file]);
+  expect(cli.code).not.toBe(0);
+  expect(cli.out).toContain("offered in accepts[] but not declared");
 });
 
 // ---------------------------------------------------------------------------

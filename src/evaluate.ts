@@ -6,7 +6,7 @@
  * from fixtures.
  *
  * The shape being evaluated depends on what the response claims:
- *   - x402 v2 (`x402Version: 2`) — the MDF 0.3.0 shape, evaluated per rail
+ *   - x402 v2 (`x402Version: 2`) — the MDF 0.3.x shape, evaluated per rail
  *     against the strictness profile: closed root, open `accepts[]` entries,
  *     `extensions` open to other keys with only `mdf` strict.
  *   - x402 v1 (`x402Version: 1`) — normalised into the same per-rail model and
@@ -20,7 +20,7 @@ import { fail, info, pass, warn } from "./result.ts";
 import type { ErrorObject } from "ajv";
 import { validate402V2Errors } from "./schemas.ts";
 import type { SpecMajor } from "./schemas.ts";
-import { parseNetwork } from "./network.ts";
+import { normaliseRailNetwork, parseNetwork, railChainId } from "./network.ts";
 import type { ParsedNetwork } from "./network.ts";
 import { assetMatches, expectedAsset, humanAmount, isKnownNetwork } from "./assets.ts";
 import { priceEntryForPath, tokenAccessWithoutAuth } from "./mdf.ts";
@@ -52,6 +52,8 @@ export interface Rail {
   parsed: ParsedNetwork;
   amount: string | null;
   asset: string | null;
+  /** `chainId` carried by the entry, which can normalise an alias network. */
+  chainId?: unknown;
   payTo: string | null;
   maxTimeoutSeconds: number | null;
   extra: Record<string, unknown>;
@@ -81,6 +83,7 @@ function asRail(index: number, raw: unknown): Rail {
     parsed: parseNetwork(r.network),
     amount: typeof r.amount === "string" ? r.amount : null,
     asset: typeof r.asset === "string" ? r.asset : null,
+    chainId: railChainId(r),
     payTo: typeof r.payTo === "string" ? r.payTo : null,
     maxTimeoutSeconds: typeof r.maxTimeoutSeconds === "number" ? r.maxTimeoutSeconds : null,
     extra: isObject(r.extra) ? r.extra : {},
@@ -315,8 +318,8 @@ function checkExtension(input: Evaluate402Input, a: Analysis): ValidationResult[
   if (!ext) {
     out.push(
       isMdfSite
-        ? fail(`${input.url} (extensions.mdf)`, "MDF 0.3.0 requires extensions.mdf")
-        : info(`${input.url} (extensions.mdf)`, "not present (not an MDF 0.3.0 site)")
+        ? fail(`${input.url} (extensions.mdf)`, "MDF 0.3.x requires extensions.mdf")
+        : info(`${input.url} (extensions.mdf)`, "not present (not an MDF 0.3.x site)")
     );
     return out;
   }
@@ -438,7 +441,7 @@ function evaluateLegacy(input: Evaluate402Input, body: Record<string, unknown>, 
   const verdict: ValidationResult = mdfSite
     ? fail(
         label,
-        `an MDF 0.3.0 site must serve x402 v2; this is ${offer.version}. MDF 0.3.0 is a v2 hard cut.`
+        `an MDF 0.3.x site must serve x402 v2; this is ${offer.version}. MDF 0.3.x is a v2 hard cut.`
       )
     : info(label, `${offer.version} — legacy shape, reported not failed`);
 
@@ -491,6 +494,20 @@ function checkCors(input: Evaluate402Input): ValidationResult[] {
 // MDF-only semantic checks (schema cannot express them)
 // ---------------------------------------------------------------------------
 
+/**
+ * Compare a declared asset with an offered one. A 0x address is compared
+ * case-insensitively — EIP-55 casing is a checksum, not part of the identity —
+ * and every other identifier is compared exactly, because a non-`exact`
+ * scheme's asset identifier is whatever that scheme's spec says it is. A
+ * missing side is not a mismatch (the rail checks report that separately).
+ */
+function sameAsset(declared: string | null, offered: string | null): boolean {
+  if (!declared || !offered) return true;
+  if (declared === offered) return true;
+  const isAddress = (v: string) => /^0x[0-9a-fA-F]{40}$/.test(v);
+  return isAddress(declared) && isAddress(offered) && declared.toLowerCase() === offered.toLowerCase();
+}
+
 function checkMdfSemantics(input: Evaluate402Input, body: unknown, path: string): ValidationResult[] {
   if (input.mdfMajor !== "0.3" || !input.mdfDoc) return [];
   const out: ValidationResult[] = [];
@@ -519,21 +536,34 @@ function checkMdfSemantics(input: Evaluate402Input, body: unknown, path: string)
   }
 
   const declared: DeclaredRail[] = entry.rails;
-  const emitted = analyseV2(body, true).rails.filter((r) => classifyRail(r).kind === "evaluated");
-  const key = (scheme: string, network: string) => `${scheme.toLowerCase()}|${parseNetwork(network).id}`;
+  // Presence is compared across every rail, not only the ones we can evaluate.
+  // A non-standard scheme is still an offer the 402 makes, and a rail the
+  // declaration omits is exactly what the one-to-one rule exists to catch
+  // (spec 0.3.1 / decision 26; finding F3 in the #57 record). Evaluation is
+  // still limited to `evaluated` rails — see evaluateV2.
+  const offered = analyseV2(body, true).rails;
+  const key = (scheme: string, network: string, chainId?: unknown) =>
+    `${scheme.toLowerCase()}|${normaliseRailNetwork(network, chainId)}`;
 
-  const emittedByKey = new Map(emitted.map((r) => [key(r.scheme, r.network), r]));
-  const declaredKeys = new Set(declared.map((d) => key(d.scheme, d.network)));
+  const offeredByKey = new Map<string, Rail>();
+  for (const rail of offered) {
+    // An entry with no scheme or no network is not a coherent offer. The
+    // per-rail checks report it; it must not become an agreement failure.
+    if (!rail.scheme || !rail.network) continue;
+    const k = key(rail.scheme, rail.network, rail.chainId);
+    if (!offeredByKey.has(k)) offeredByKey.set(k, rail);
+  }
+  const declaredKeys = new Set(declared.map((d) => key(d.scheme, d.network, d.chainId)));
   const problems: string[] = [];
   const gaps: string[] = [];
 
   for (const d of declared) {
-    const match = emittedByKey.get(key(d.scheme, d.network));
+    const match = offeredByKey.get(key(d.scheme, d.network, d.chainId));
     if (!match) {
       gaps.push(`${d.scheme}/${d.network} declared in mdf.json but not offered (may be degraded)`);
       continue;
     }
-    if (d.asset && match.asset && d.asset.toLowerCase() !== match.asset.toLowerCase()) {
+    if (!sameAsset(d.asset, match.asset)) {
       problems.push(`${d.scheme}/${d.network}: asset ${match.asset} does not match the declared ${d.asset}`);
     }
     if (d.amount && match.amount && d.amount !== match.amount) {
@@ -541,9 +571,12 @@ function checkMdfSemantics(input: Evaluate402Input, body: unknown, path: string)
     }
   }
 
-  for (const rail of emitted) {
-    if (!declaredKeys.has(key(rail.scheme, rail.network))) {
-      problems.push(`${rail.scheme}/${rail.network} is offered but not declared in mdf.json for ${entry.key}`);
+  for (const rail of offered) {
+    if (!rail.scheme || !rail.network) continue;
+    if (!declaredKeys.has(key(rail.scheme, rail.network, rail.chainId))) {
+      problems.push(
+        `${rail.scheme}/${rail.network} is offered in accepts[] but not declared in mdf.json for ${entry.key}`
+      );
     }
   }
 
@@ -589,7 +622,7 @@ export function evaluate402Response(input: Evaluate402Input): ValidationResult[]
       mdfSite
         ? fail(
             `${input.url} (402 body)`,
-            `${input.bodyError ?? "absent or not JSON"} — MDF 0.3.0 requires the PaymentRequired object in the body`
+            `${input.bodyError ?? "absent or not JSON"} — MDF 0.3.x requires the PaymentRequired object in the body`
           )
         : warn(
             `${input.url} (402 body)`,
@@ -623,7 +656,7 @@ export function evaluate402Response(input: Evaluate402Input): ValidationResult[]
         : mdfSite
         ? fail(
             `${input.url} (PAYMENT-REQUIRED)`,
-            "missing — x402 v2 carries the PaymentRequired object in this header and MDF 0.3.0 requires it"
+            "missing — x402 v2 carries the PaymentRequired object in this header and MDF 0.3.x requires it"
           )
         : warn(`${input.url} (PAYMENT-REQUIRED)`, "missing — the header is the canonical x402 v2 location")
     );
@@ -693,7 +726,7 @@ export function evaluatePaidResponse(input: EvaluatePaidInput): ValidationResult
       mdfSite
         ? fail(
             `${input.url} (PAYMENT-RESPONSE)`,
-            "missing — MDF 0.3.0 requires it on every paid 200 for every x402 rail"
+            "missing — MDF 0.3.x requires it on every paid 200 for every x402 rail"
           )
         : warn(`${input.url} (PAYMENT-RESPONSE)`, "missing on a paid 200"),
     ];

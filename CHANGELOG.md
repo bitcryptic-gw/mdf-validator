@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.3.0] — 2026-11-11
+
+Spec 0.3.1 support (Vikunja #69). 0.3.1 only loosens the schema — a
+non-`exact` scheme defines its own asset identifier — so nothing here changes
+what a 0.3.0 document has to look like; what changes is that a rail the
+declaration omits is now spotted. This is the first validator release that
+supports spec 0.3.x (0.2.0 targeted 0.3.0).
+
+### Changed
+
+- **The one-to-one check compares presence across every rail, not only the
+  ones we can evaluate** (`checkMdfSemantics` in `src/evaluate.ts`). Before,
+  the comparison set was `rails.filter(classifyRail(...).kind === "evaluated")`,
+  so a non-`exact` rail was invisible on both sides: a faithful declaration got
+  a false "declared but not offered" warning, and a declaration that omitted a
+  rail the 402 offered passed. Now an offered rail that is not declared is a
+  **failure** (`offered in accepts[] but not declared in mdf.json`), a declared
+  rail that is not offered stays a **warning** (`may be degraded`), and a
+  declared rail that is offered with a different `asset` or `amount` is a
+  failure. Per-rail semantic checks still run only for `evaluated` rails, and
+  an unknown scheme still gets its per-rail "non-standard, not evaluated"
+  warning — a rail we cannot evaluate never fails the offer.
+- **Network normalisation for that comparison** (`normaliseRailNetwork` in
+  `src/network.ts`): a CAIP-2 id is used as written; an alias carrying a numeric
+  `chainId` on the entry becomes `eip155:<chainId>` (how ProofLines names
+  Monad: `monad-testnet` + `chainId: 10143`); otherwise the legacy alias table
+  applies; otherwise the value is compared literally.
+- **`asset` is compared exactly except for 0x addresses**, where EIP-55 casing
+  is a checksum rather than part of the identity. A non-`exact` scheme's opaque
+  identifier is whatever its own spec says it is.
+- **`network` is scoped to the scheme too (vendored from spec 0.3.1).** A
+  402 `accepts[]` entry with a non-`exact` scheme may name its network with a
+  bounded opaque identifier (for example ProofLines' `monad-testnet` plus
+  `chainId`); an `exact` entry still requires CAIP-2. `mdf.json` always
+  requires CAIP-2, and the alias normalisation above only applies when reading
+  a 402.
+- **Requirement messages are generation-wide.** "MDF 0.3.0 requires …" and
+  "not MDF 0.3.0 conformant" became "MDF 0.3.x", so a 0.3.1 document is not
+  reported against a version-pinned string.
+
+### Added
+
+- **`--mdf-json <path>`** — validate a local `/mdf.json` against a live site in
+  place of fetching one. Its schema result is reported the same way, and the
+  document drives the `accepts[]` agreement and token-access checks, so a
+  drafted capability document can be tested before it is published.
+- Fixtures for the ProofLines two-rail shape (`mdf-prooflines-two-rail.json`,
+  `mdf-prooflines-usdc-only.json`) and the 0.3.1 spec example
+  (`mdf-spec-native-asset-rail.json`), with tests for the pass, the
+  undeclared-rail failure, the declared-but-absent warning, an asset mismatch
+  and an amount mismatch.
+
+### Vendored
+
+- `src/schemas/mdf.schema.json` and `src/schemas/mdf-402.schema.json`
+  re-vendored from `bitcryptic-gw/mdf` `d02e75f` (spec 0.3.1, revision 1); new
+  sha256s are recorded in `src/vendor/SOURCES.md`.
+
 ## [0.2.0] — 2026-11-09
 
 Spec 0.3.0 / x402 v2 support (Vikunja #58–#60). Validates what an x402 v2

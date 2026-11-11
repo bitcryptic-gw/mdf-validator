@@ -1,0 +1,81 @@
+{
+  "note": "Spec 0.3.1 example (PR #6), examples/mdf-native-asset-rail.json: the faithful two-rail ProofLines draft. Copied verbatim.",
+  "url": "https://prooflines.org",
+  "body": {
+    "mdf_version": "0.3.1",
+    "site": "https://prooflines.org",
+    "name": "ProofLines",
+    "llms_txt": "https://prooflines.org/llms.txt",
+    "pricing": {
+      "default": {
+        "rails": []
+      },
+      "sections": {
+        "/monad/x402/*": {
+          "rails": [
+            {
+              "scheme": "monad-native-exact",
+              "network": "eip155:10143",
+              "asset": "native",
+              "amount": "3000000000000000"
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:10143",
+              "asset": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              "amount": "3000"
+            }
+          ]
+        },
+        "/monad/x402/network-concentration-report": {
+          "rails": [
+            {
+              "scheme": "monad-native-exact",
+              "network": "eip155:10143",
+              "asset": "native",
+              "amount": "10000000000000000"
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:10143",
+              "asset": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+              "amount": "10000"
+            }
+          ]
+        },
+        "/monad/x402-mainnet/*": {
+          "rails": [
+            {
+              "scheme": "monad-native-exact",
+              "network": "eip155:143",
+              "asset": "native",
+              "amount": "3000000000000000"
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:143",
+              "asset": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+              "amount": "3000"
+            }
+          ]
+        },
+        "/monad/x402-mainnet/network-concentration-report": {
+          "rails": [
+            {
+              "scheme": "monad-native-exact",
+              "network": "eip155:143",
+              "asset": "native",
+              "amount": "10000000000000000"
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:143",
+              "asset": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+              "amount": "10000"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

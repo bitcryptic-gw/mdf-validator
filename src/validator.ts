@@ -12,6 +12,7 @@ import { fail, pass, info, warn } from "./result.ts";
 import { specMajorOf, validateMdfDocumentFor, validate402For } from "./schemas.ts";
 import type { SpecMajor } from "./schemas.ts";
 import { USER_AGENT } from "./user-agent.ts";
+import { readFileSync } from "node:fs";
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -162,8 +163,68 @@ export async function validateMdfJson(baseUrl: string, timeout: number): Promise
   };
 }
 
-/** A short, explicit line about which spec generation the site claims. */
-export function declaredVersionResult(result: MdfJsonResult): ValidationResult | null {
+/**
+ * Validate a local `/mdf.json` in place of fetching one (`--mdf-json`).
+ *
+ * Everything downstream — the per-402 agreement check, token access, the
+ * severity of a missing document — keys off the same `MdfJsonResult`, so a
+ * local document is checked and reported exactly like a fetched one. The
+ * difference is the label and the fact that a read/parse failure is an error
+ * rather than a warning: the operator named the file.
+ */
+export function loadMdfJson(path: string): MdfJsonResult {
+  const label = `${path} (local mdf.json)`;
+
+  let body: string;
+  try {
+    body = readFileSync(path, "utf8");
+  } catch (err: any) {
+    return {
+      pass: false,
+      level: "error",
+      label,
+      message: `could not read the file (${err?.message ?? "unknown error"})`,
+    };
+  }
+
+  let doc: unknown;
+  try {
+    doc = JSON.parse(body);
+  } catch {
+    return { pass: false, level: "error", label, message: "file is not valid JSON" };
+  }
+
+  if (!isObject(doc)) {
+    return { pass: false, level: "error", label, message: "file is JSON but not an object" };
+  }
+
+  const declared = doc.mdf_version;
+  const major = specMajorOf(declared);
+  const errors = validateMdfDocumentFor(doc, major);
+
+  if (errors.length > 0) {
+    return {
+      pass: false,
+      level: "error",
+      label,
+      message: `schema validation failed (checked against MDF ${major}.x)`,
+      errors,
+      doc,
+      major,
+    };
+  }
+
+  return {
+    pass: true,
+    level: "info",
+    label,
+    message: `valid (MDF v${String(declared)}) — local document, /mdf.json not fetched`,
+    doc,
+    major,
+  };
+}
+
+/** A short, explicit line about which spec generation the site claims. */export function declaredVersionResult(result: MdfJsonResult): ValidationResult | null {
   if (!result.doc || !result.major) return null;
   const declared = String(result.doc.mdf_version);
   if (result.major === "0.3") {
@@ -171,6 +232,6 @@ export function declaredVersionResult(result: MdfJsonResult): ValidationResult |
   }
   return warn(
     `${result.label} (version)`,
-    `not MDF 0.3.0 conformant: declares ${declared}; 0.3.0 requires 0.3.x and an x402 v2 402. Validated against the 0.2 schema so the rest of the report is still meaningful.`
+    `not MDF 0.3.x conformant: declares ${declared}; 0.3.x requires a 0.3.x version and an x402 v2 402. Validated against the 0.2 schema so the rest of the report is still meaningful.`
   );
 }

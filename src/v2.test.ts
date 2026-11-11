@@ -14,10 +14,10 @@ import { join } from "path";
 import { evaluate402Response, evaluatePaidResponse, classifyRail } from "./evaluate.ts";
 import type { Evaluate402Input, ResponseHeaders } from "./evaluate.ts";
 import { encodePaymentRequiredHeader, firstDifference, decodePaymentRequiredHeader, MAX_HEADER_CHARS } from "./payment-required.ts";
-import { parseNetwork, normaliseLegacyNetwork, isCaip2 } from "./network.ts";
+import { parseNetwork, normaliseLegacyNetwork, normaliseRailNetwork, isCaip2 } from "./network.ts";
 import { expectedAsset, humanAmount } from "./assets.ts";
 import { priceEntryForPath, tokenAccessWithoutAuth, allPriceEntries } from "./mdf.ts";
-import { specMajorOf, validateMdfDocumentFor } from "./schemas.ts";
+import { specMajorOf, validate402V2Errors, validateMdfDocumentFor } from "./schemas.ts";
 import { parseLlmsEntries, llmsNoteSaysPaid, wellKnownUrls, mdfPricedUrls } from "./discovery.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures", "v2");
@@ -218,7 +218,7 @@ test("an offered rail that mdf.json does not declare is a failure", () => {
   const rs = evaluate(load("402-extra-rail-vs-mdf.json"));
   const f = errorsOf(rs).find((r) => r.label.includes("(mdf.json agreement)"));
   expect(f).toBeDefined();
-  expect(f?.errors?.join("\n")).toContain("offered but not declared");
+  expect(f?.errors?.join("\n")).toContain("offered in accepts[] but not declared");
 });
 
 test("a declared rail that is not offered is a warning (may be degraded)", () => {
@@ -240,6 +240,101 @@ test("a mismatched declared amount is a failure", () => {
   const rs = evaluate({ ...dual, body }, { mdfDoc: mdf, mdfMajor: "0.3" });
   const f = errorsOf(rs).find((r) => r.label.includes("(mdf.json agreement)"));
   expect(f?.errors?.join("\n")).toContain("does not match the declared 1000");
+});
+
+// ---------------------------------------------------------------------------
+// 0.3.1: presence across all rails, not only the evaluated ones (finding F3)
+// ---------------------------------------------------------------------------
+
+const prooflinesOffer = () => load("402-prooflines-redacted.json");
+const twoRailDoc = () => load("mdf-prooflines-two-rail.json").body as Record<string, unknown>;
+const usdcOnlyDoc = () => load("mdf-prooflines-usdc-only.json").body as Record<string, unknown>;
+
+test("both rails declared and both offered: the agreement check passes on 2 rails", () => {
+  // The offer names its native rail "monad-testnet" with extra.chainId 10143;
+  // the declaration names eip155:10143. The alias must normalise, or this would
+  // report the rail as both undeclared and not offered.
+  const rs = evaluate(prooflinesOffer(), { mdfDoc: twoRailDoc(), mdfMajor: "0.3" });
+  const agreement = rs.find((r) => r.label.includes("(mdf.json agreement)"));
+  expect(agreement?.pass).toBe(true);
+  expect(agreement?.message).toContain("matches the 2 declared rails");
+  expect(joined(rs)).not.toContain("offered in accepts[] but not declared");
+});
+
+test("a native rail offered in accepts[] but omitted from mdf.json is a failure", () => {
+  // The schema-valid USDC-only draft from the #57 record. Under 0.3.0 this
+  // passed; the whole point of the presence check is that it must not.
+  const rs = evaluate(prooflinesOffer(), { mdfDoc: usdcOnlyDoc(), mdfMajor: "0.3" });
+  const agreement = rs.filter((r) => r.label.includes("(mdf.json agreement)"));
+  const failure = agreement.find((r) => !r.pass && r.level === "error");
+  expect(failure).toBeDefined();
+  expect(failure?.message).toContain("does not match the declared rails");
+  expect(failure?.errors?.join("\n")).toContain("offered in accepts[] but not declared");
+  expect(failure?.errors?.join("\n")).toContain("monad-native-exact/monad-testnet");
+});
+
+test("a declared native rail absent from the 402 is a warning (may be degraded)", () => {
+  const offer = prooflinesOffer();
+  const body = structuredClone(offer.body) as any;
+  body.accepts = body.accepts.filter((a: any) => a.scheme !== "monad-native-exact");
+  const rs = evaluate({ ...offer, body }, { mdfDoc: twoRailDoc(), mdfMajor: "0.3" });
+  const agreement = rs.find((r) => r.label.includes("(mdf.json agreement)"));
+  expect(agreement?.level).toBe("warn");
+  expect(agreement?.message).toContain("declared rails not all offered");
+  expect(agreement?.errors?.join("\n")).toContain("monad-native-exact/eip155:10143 declared in mdf.json but not offered");
+});
+
+test("a declared native rail with a different amount is a failure", () => {
+  const doc = structuredClone(twoRailDoc()) as any;
+  doc.pricing.sections["/monad/x402/*"].rails[0].amount = "4000000000000000";
+  const rs = evaluate(prooflinesOffer(), { mdfDoc: doc, mdfMajor: "0.3" });
+  const failure = errorsOf(rs).find((r) => r.label.includes("(mdf.json agreement)"));
+  expect(failure?.errors?.join("\n")).toContain("does not match the declared 4000000000000000");
+});
+
+test("a declared native rail with a different asset is a failure", () => {
+  const doc = structuredClone(twoRailDoc()) as any;
+  doc.pricing.sections["/monad/x402/*"].rails[0].asset = "MON";
+  const rs = evaluate(prooflinesOffer(), { mdfDoc: doc, mdfMajor: "0.3" });
+  const failure = errorsOf(rs).find((r) => r.label.includes("(mdf.json agreement)"));
+  expect(failure?.errors?.join("\n")).toContain("asset native does not match the declared MON");
+});
+
+test("an alias plus a numeric chainId normalises to CAIP-2", () => {
+  expect(normaliseRailNetwork("monad-testnet", 10143)).toBe("eip155:10143");
+  expect(normaliseRailNetwork("monad-mainnet", 143)).toBe("eip155:143");
+  expect(normaliseRailNetwork("monad-testnet", "10143")).toBe("eip155:10143");
+  // A CAIP-2 id is used as written, even when a chainId is also present.
+  expect(normaliseRailNetwork("eip155:8453", 1)).toBe("eip155:8453");
+  // The legacy table is the fallback when no chainId is stated.
+  expect(normaliseRailNetwork("base")).toBe("eip155:8453");
+  expect(normaliseRailNetwork("monad-testnet")).toBe("monad-testnet");
+});
+
+test("the native rail still gets its per-rail non-standard warning, and never a failure", () => {
+  const rs = evaluate(prooflinesOffer(), { mdfDoc: twoRailDoc(), mdfMajor: "0.3" });
+  const native = rs.find((r) => r.label.includes("monad-native-exact"));
+  expect(native?.level).toBe("warn");
+  expect(native?.message).toContain("non-standard scheme");
+});
+
+test("a non-exact 402 entry may name a non-CAIP-2 network; an exact entry may not", () => {
+  // The ProofLines capture is the standing shape: exact/USDC on CAIP-2, plus the
+  // publisher's own scheme naming "monad-testnet" with a chainId. From 0.3.1 the
+  // CAIP-2 requirement is scoped to `exact`, so the native entry is conformant.
+  const f = prooflinesOffer();
+  expect(validate402V2Errors(f.body, false)).toBeNull();
+
+  const exactAlias = structuredClone(f.body) as any;
+  exactAlias.accepts[1].scheme = "exact";
+  const errors = validate402V2Errors(exactAlias, false) ?? [];
+  expect(errors.some((e) => e.instancePath === "/accepts/1/network")).toBe(true);
+});
+
+test("the ProofLines native rail has no structural deviation left to note", () => {
+  const rs = evaluate(prooflinesOffer());
+  const native = rs.find((r) => r.label.includes("monad-native-exact"));
+  expect(native?.message).not.toContain("structural deviation");
 });
 
 test("token access without auth.endpoint: the schema and the direct rule agree", () => {
@@ -305,8 +400,8 @@ test("an MDF 0.3 site serving v1 is a failure (hard cut)", () => {
   expect(f?.message).toContain("must serve x402 v2");
 });
 
-test("the spec 0.3.0 mdf.json examples validate under the 0.3 schema", () => {
-  for (const name of ["mdf-spec-dual-rail.json", "mdf-spec-token-tier.json"]) {
+test("the spec mdf.json examples validate under the 0.3 schema", () => {
+  for (const name of ["mdf-spec-dual-rail.json", "mdf-spec-token-tier.json", "mdf-spec-native-asset-rail.json"]) {
     const doc = load(name).body as Record<string, unknown>;
     expect({ name, errors: validateMdfDocumentFor(doc, "0.3") }).toEqual({ name, errors: [] });
   }

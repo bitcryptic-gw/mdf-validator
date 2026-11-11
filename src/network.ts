@@ -85,6 +85,57 @@ export function normaliseLegacyNetwork(value: string): string {
   return LEGACY_NAMES[key] ?? value.trim();
 }
 
+/** A positive, safe integer chain id, from a number or a numeric string. */
+function numericChainId(value: unknown): number | null {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : Number.NaN;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Normalise a rail's network for the one-to-one comparison (spec 0.3.1,
+ * decision 26). Order matters, and each step is deliberate:
+ *
+ *   1. a CAIP-2 identifier is used as written;
+ *   2. an alias carrying a numeric `chainId` on the entry becomes
+ *      `eip155:<chainId>` — this is how ProofLines names Monad on the wire
+ *      (`"monad-testnet"` + `chainId: 10143`);
+ *   3. a name in the legacy table is mapped (`base` → `eip155:8453`);
+ *   4. anything else is compared literally.
+ *
+ * Step 2 comes before the alias table on purpose: when an entry states its own
+ * chain id, that is stronger evidence than a name we happen to recognise.
+ */
+export function normaliseRailNetwork(raw: unknown, chainId?: unknown): string {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value) return "";
+
+  if (CAIP2.test(value)) return value;
+
+  const id = numericChainId(chainId);
+  if (id !== null) return `eip155:${id}`;
+
+  const legacy = LEGACY_NAMES[value.toLowerCase()];
+  if (legacy) return legacy;
+
+  return value;
+}
+
+/** A `chainId` declared on a rail entry: top-level member, else inside `extra`. */
+export function railChainId(entry: Record<string, unknown>): unknown {
+  if (entry.chainId !== undefined) return entry.chainId;
+  const extra = entry.extra;
+  const obj =
+    typeof extra === "object" && extra !== null && !Array.isArray(extra)
+      ? (extra as Record<string, unknown>)
+      : null;
+  return obj?.chainId;
+}
+
 /** True when the value is (or normalises to) a well-formed CAIP-2 id. */
 export function isCaip2(value: unknown): boolean {
   if (typeof value !== "string") return false;

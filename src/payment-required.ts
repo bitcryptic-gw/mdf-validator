@@ -2,7 +2,7 @@
  * payment-required.ts — the PAYMENT-REQUIRED header, and body/header agreement.
  *
  * x402 v2 makes the header the canonical transport location for the
- * PaymentRequired object, and MDF 0.3.0 additionally requires the body to be
+ * PaymentRequired object, and MDF 0.3.x additionally requires the body to be
  * the same object. A consumer that reads either must reach the same offer, so
  * a mismatch is a failure in its own right rather than a warning about one of
  * the two.

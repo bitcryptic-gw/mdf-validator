@@ -4,8 +4,8 @@ CLI tool to validate MDF (Markdown First) site compliance.
 
 Fetches `/mdf.json` from a site, validates it against the MDF schema, checks `/llms.txt` reachability, and optionally verifies that content URLs respond with correct MDF headers.
 
-**Spec:** https://github.com/bitcryptic-gw/mdf (0.3.0 / x402 v2)  
-**Status:** v0.2.0 — spec 0.3.0: per-rail x402 v2 checks, `PAYMENT-REQUIRED`, v1 tolerance
+**Spec:** https://github.com/bitcryptic-gw/mdf (0.3.1 / x402 v2)  
+**Status:** v0.3.0 — spec 0.3.0–0.3.1: per-rail x402 v2 checks, `PAYMENT-REQUIRED`, v1 tolerance, presence-based one-to-one check, `--mdf-json`
 
 ---
 
@@ -49,6 +49,9 @@ mdf-validate --priced-url https://example.com/premium https://example.com
 
 # Check a captured paid 200 (no payment is made by the validator)
 mdf-validate --paid-response capture.json https://example.com
+
+# Validate a local mdf.json against the live site, without publishing it first
+mdf-validate --mdf-json ./draft-mdf.json https://prooflines.org
 
 # Be polite when probing someone else's site
 mdf-validate --check-headers --delay 2000 https://prooflines.org
@@ -135,6 +138,35 @@ message names the signal that triggered the upgrade.
 
 ---
 
+## Validating a local `/mdf.json`
+
+`--mdf-json <path>` reads the declaration from a file instead of fetching
+`/mdf.json` from the site. Everything downstream is unchanged: the document is
+schema-checked against the version it declares, its result is reported in the
+same place, and it drives the `accepts[]` agreement and token-access checks
+exactly as a fetched one would.
+
+This is how a draft capability document is tested against a live site before it
+is published:
+
+```bash
+mdf-validate --mdf-json ./draft-mdf.json --priced-url https://prooflines.org/monad/x402/concentration-hhi https://prooflines.org
+```
+
+A local document that cannot be read, is not JSON, or fails its own schema is
+an **error** — the operator named the file, so there is nothing "unavailable"
+about it. A fetched `/mdf.json` that is missing stays a warning for a site with
+no other MDF signal, as above.
+
+Because the document is treated as the site's own declaration, the MDF-site
+checks follow from it: a 402 that does not carry `extensions.mdf` or a response
+without `X-MDF-Version` will be reported against a site that would otherwise be
+read as a plain x402 publisher. That is the point of the flag — it answers
+"would this declaration be correct for this site?" — not a change in the
+severity rules.
+
+---
+
 ## What it checks
 
 | Check | Where |
@@ -147,7 +179,8 @@ message names the signal that triggered the upgrade.
 | Each rail: known scheme+network fully checked; unknown scheme/network warns per rail and never fails the offer | same |
 | CAIP-2 networks parsed; legacy names (`base`, `base-sepolia`) normalised for comparison | same |
 | Asset and **EIP-712 domain** (`extra.name`/`extra.version`) per network — mainnet USDC is `"USD Coin"`, Sepolia `"USDC"` | same |
-| `accepts[]` matches `/mdf.json` rails one-to-one (missing rail warns, extra/mismatched fails) | same, MDF 0.3 sites |
+| `accepts[]` matches `/mdf.json` rails one-to-one, compared on (scheme, normalised network, asset, amount). An offered rail that is not declared **fails**; a declared rail that is not offered **warns** (it may be degraded) | same, MDF 0.3 sites, or `--mdf-json` |
+| Network aliases normalise to CAIP-2 for that comparison: a `chainId` on the entry first, then the legacy alias table (`base`, `base-sepolia`, …) | same |
 | `access: "token"` requires `auth.endpoint`; price summary agrees with `accepts[]`; 402 is `no-store`; `X-MDF-Version` present | same, MDF 0.3 sites |
 | x402 v1 / MDF 0.2 shape: normalised and reported as legacy (failure only if the site declares MDF 0.3.x) | same |
 | `PAYMENT-RESPONSE` present and conformant on a captured paid 200 | `--paid-response` |
