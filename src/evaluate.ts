@@ -6,7 +6,7 @@
  * from fixtures.
  *
  * The shape being evaluated depends on what the response claims:
- *   - x402 v2 (`x402Version: 2`) — the MDF 0.3.0 shape, evaluated per rail
+ *   - x402 v2 (`x402Version: 2`) — the MDF 0.3.x shape, evaluated per rail
  *     against the strictness profile: closed root, open `accepts[]` entries,
  *     `extensions` open to other keys with only `mdf` strict.
  *   - x402 v1 (`x402Version: 1`) — normalised into the same per-rail model and
@@ -318,8 +318,8 @@ function checkExtension(input: Evaluate402Input, a: Analysis): ValidationResult[
   if (!ext) {
     out.push(
       isMdfSite
-        ? fail(`${input.url} (extensions.mdf)`, "MDF 0.3.0 requires extensions.mdf")
-        : info(`${input.url} (extensions.mdf)`, "not present (not an MDF 0.3.0 site)")
+        ? fail(`${input.url} (extensions.mdf)`, "MDF 0.3.x requires extensions.mdf")
+        : info(`${input.url} (extensions.mdf)`, "not present (not an MDF 0.3.x site)")
     );
     return out;
   }
@@ -441,7 +441,7 @@ function evaluateLegacy(input: Evaluate402Input, body: Record<string, unknown>, 
   const verdict: ValidationResult = mdfSite
     ? fail(
         label,
-        `an MDF 0.3.0 site must serve x402 v2; this is ${offer.version}. MDF 0.3.0 is a v2 hard cut.`
+        `an MDF 0.3.x site must serve x402 v2; this is ${offer.version}. MDF 0.3.x is a v2 hard cut.`
       )
     : info(label, `${offer.version} — legacy shape, reported not failed`);
 
@@ -622,7 +622,7 @@ export function evaluate402Response(input: Evaluate402Input): ValidationResult[]
       mdfSite
         ? fail(
             `${input.url} (402 body)`,
-            `${input.bodyError ?? "absent or not JSON"} — MDF 0.3.0 requires the PaymentRequired object in the body`
+            `${input.bodyError ?? "absent or not JSON"} — MDF 0.3.x requires the PaymentRequired object in the body`
           )
         : warn(
             `${input.url} (402 body)`,
@@ -656,7 +656,7 @@ export function evaluate402Response(input: Evaluate402Input): ValidationResult[]
         : mdfSite
         ? fail(
             `${input.url} (PAYMENT-REQUIRED)`,
-            "missing — x402 v2 carries the PaymentRequired object in this header and MDF 0.3.0 requires it"
+            "missing — x402 v2 carries the PaymentRequired object in this header and MDF 0.3.x requires it"
           )
         : warn(`${input.url} (PAYMENT-REQUIRED)`, "missing — the header is the canonical x402 v2 location")
     );
@@ -726,7 +726,7 @@ export function evaluatePaidResponse(input: EvaluatePaidInput): ValidationResult
       mdfSite
         ? fail(
             `${input.url} (PAYMENT-RESPONSE)`,
-            "missing — MDF 0.3.0 requires it on every paid 200 for every x402 rail"
+            "missing — MDF 0.3.x requires it on every paid 200 for every x402 rail"
           )
         : warn(`${input.url} (PAYMENT-RESPONSE)`, "missing on a paid 200"),
     ];

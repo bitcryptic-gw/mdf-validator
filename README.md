@@ -5,7 +5,7 @@ CLI tool to validate MDF (Markdown First) site compliance.
 Fetches `/mdf.json` from a site, validates it against the MDF schema, checks `/llms.txt` reachability, and optionally verifies that content URLs respond with correct MDF headers.
 
 **Spec:** https://github.com/bitcryptic-gw/mdf (0.3.1 / x402 v2)  
-**Status:** v0.2.0 — spec 0.3.0–0.3.1: per-rail x402 v2 checks, `PAYMENT-REQUIRED`, v1 tolerance, presence-based one-to-one check, `--mdf-json`
+**Status:** v0.3.0 — spec 0.3.0–0.3.1: per-rail x402 v2 checks, `PAYMENT-REQUIRED`, v1 tolerance, presence-based one-to-one check, `--mdf-json`
 
 ---
 

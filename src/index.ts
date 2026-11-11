@@ -25,7 +25,7 @@ import type { MdfSignal } from "./mdf-signal.ts";
 
 export type { ValidationResult } from "./result.ts";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 function usage() {
   console.log(`

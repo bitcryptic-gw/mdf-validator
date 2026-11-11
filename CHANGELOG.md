@@ -1,11 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] — 2026-11-11
 
 Spec 0.3.1 support (Vikunja #69). 0.3.1 only loosens the schema — a
 non-`exact` scheme defines its own asset identifier — so nothing here changes
 what a 0.3.0 document has to look like; what changes is that a rail the
-declaration omits is now spotted.
+declaration omits is now spotted. This is the first validator release that
+supports spec 0.3.x (0.2.0 targeted 0.3.0).
 
 ### Changed
 
@@ -29,6 +30,15 @@ declaration omits is now spotted.
 - **`asset` is compared exactly except for 0x addresses**, where EIP-55 casing
   is a checksum rather than part of the identity. A non-`exact` scheme's opaque
   identifier is whatever its own spec says it is.
+- **`network` is scoped to the scheme too (vendored from spec 0.3.1).** A
+  402 `accepts[]` entry with a non-`exact` scheme may name its network with a
+  bounded opaque identifier (for example ProofLines' `monad-testnet` plus
+  `chainId`); an `exact` entry still requires CAIP-2. `mdf.json` always
+  requires CAIP-2, and the alias normalisation above only applies when reading
+  a 402.
+- **Requirement messages are generation-wide.** "MDF 0.3.0 requires …" and
+  "not MDF 0.3.0 conformant" became "MDF 0.3.x", so a 0.3.1 document is not
+  reported against a version-pinned string.
 
 ### Added
 
@@ -45,8 +55,8 @@ declaration omits is now spotted.
 ### Vendored
 
 - `src/schemas/mdf.schema.json` and `src/schemas/mdf-402.schema.json`
-  re-vendored from `bitcryptic-gw/mdf` `f8e0b36` (spec 0.3.1); new sha256s are
-  recorded in `src/vendor/SOURCES.md`.
+  re-vendored from `bitcryptic-gw/mdf` `d02e75f` (spec 0.3.1, revision 1); new
+  sha256s are recorded in `src/vendor/SOURCES.md`.
 
 ## [0.2.0] — 2026-11-09
 

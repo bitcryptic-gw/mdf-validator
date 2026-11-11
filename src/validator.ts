@@ -232,6 +232,6 @@ export function loadMdfJson(path: string): MdfJsonResult {
   }
   return warn(
     `${result.label} (version)`,
-    `not MDF 0.3.0 conformant: declares ${declared}; 0.3.0 requires 0.3.x and an x402 v2 402. Validated against the 0.2 schema so the rest of the report is still meaningful.`
+    `not MDF 0.3.x conformant: declares ${declared}; 0.3.x requires a 0.3.x version and an x402 v2 402. Validated against the 0.2 schema so the rest of the report is still meaningful.`
   );
 }

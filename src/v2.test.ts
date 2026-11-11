@@ -17,7 +17,7 @@ import { encodePaymentRequiredHeader, firstDifference, decodePaymentRequiredHead
 import { parseNetwork, normaliseLegacyNetwork, normaliseRailNetwork, isCaip2 } from "./network.ts";
 import { expectedAsset, humanAmount } from "./assets.ts";
 import { priceEntryForPath, tokenAccessWithoutAuth, allPriceEntries } from "./mdf.ts";
-import { specMajorOf, validateMdfDocumentFor } from "./schemas.ts";
+import { specMajorOf, validate402V2Errors, validateMdfDocumentFor } from "./schemas.ts";
 import { parseLlmsEntries, llmsNoteSaysPaid, wellKnownUrls, mdfPricedUrls } from "./discovery.ts";
 
 const FIXTURES = join(import.meta.dir, "fixtures", "v2");
@@ -316,6 +316,25 @@ test("the native rail still gets its per-rail non-standard warning, and never a 
   const native = rs.find((r) => r.label.includes("monad-native-exact"));
   expect(native?.level).toBe("warn");
   expect(native?.message).toContain("non-standard scheme");
+});
+
+test("a non-exact 402 entry may name a non-CAIP-2 network; an exact entry may not", () => {
+  // The ProofLines capture is the standing shape: exact/USDC on CAIP-2, plus the
+  // publisher's own scheme naming "monad-testnet" with a chainId. From 0.3.1 the
+  // CAIP-2 requirement is scoped to `exact`, so the native entry is conformant.
+  const f = prooflinesOffer();
+  expect(validate402V2Errors(f.body, false)).toBeNull();
+
+  const exactAlias = structuredClone(f.body) as any;
+  exactAlias.accepts[1].scheme = "exact";
+  const errors = validate402V2Errors(exactAlias, false) ?? [];
+  expect(errors.some((e) => e.instancePath === "/accepts/1/network")).toBe(true);
+});
+
+test("the ProofLines native rail has no structural deviation left to note", () => {
+  const rs = evaluate(prooflinesOffer());
+  const native = rs.find((r) => r.label.includes("monad-native-exact"));
+  expect(native?.message).not.toContain("structural deviation");
 });
 
 test("token access without auth.endpoint: the schema and the direct rule agree", () => {
